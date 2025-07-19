@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+.pytest_cache/
+
+# Database
+*.db
+*.sqlite3
+trading_app.db
+
+# Logs
+*.log
+logs/
+backend.log
+trading_app.log
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# Build outputs
+build/
+dist/
+*.tgz
+*.tar.gz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Terraform
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+tfplan
+.terraform/
+*.tfplan
+
+# AWS
+.aws/
+latest-images.env
+
+# Deployment info (contains sensitive info)
+deployment/terraform-outputs.json
+deployment/github-secrets.txt
+deployment/deployment-info.md
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+EOF < /dev/null

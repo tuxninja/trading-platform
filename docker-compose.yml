@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: trading-backend-dev
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=sqlite:///data/trading_dev.db
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - LOG_LEVEL=DEBUG
+      - DEBUG_MODE=true
+      - USE_MOCK_DATA_FALLBACK=true
+      - ENABLE_SCHEDULER=false
+    volumes:
+      - ./backend:/app
+      - backend_data_dev:/app/data
+    ports:
+      - "8000:8000"
+    networks:
+      - trading_network_dev
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: trading-frontend-dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_ENABLE_DEBUG=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - trading_network_dev
+    depends_on:
+      - backend
+
+volumes:
+  backend_data_dev:
+
+networks:
+  trading_network_dev:
+    driver: bridge

@@ -1,0 +1,104 @@
+{
+  "api_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://api.divestifi.com"
+  },
+  "application_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://divestifi.com"
+  },
+  "ecr_repository_url_backend": {
+    "sensitive": false,
+    "type": "string",
+    "value": "907391580367.dkr.ecr.us-east-1.amazonaws.com/trading-platform-backend"
+  },
+  "ecr_repository_url_frontend": {
+    "sensitive": false,
+    "type": "string",
+    "value": "907391580367.dkr.ecr.us-east-1.amazonaws.com/trading-platform-frontend"
+  },
+  "ecr_repository_url_main": {
+    "sensitive": false,
+    "type": "string",
+    "value": "907391580367.dkr.ecr.us-east-1.amazonaws.com/trading-platform"
+  },
+  "estimated_monthly_cost": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "data_transfer": "string",
+        "ebs_storage": "string",
+        "ec2_instance": "string",
+        "ecr_storage": "string",
+        "elastic_ip": "string",
+        "route53_zone": "string",
+        "total_estimated": "string"
+      }
+    ],
+    "value": {
+      "data_transfer": "$0.00 - $2.00 (estimated)",
+      "ebs_storage": "${var.root_volume_size * 0.08}",
+      "ec2_instance": "$16.79",
+      "ecr_storage": "$0.00 - $0.50 (under 500MB free)",
+      "elastic_ip": "$0.00 (while attached)",
+      "route53_zone": "$0.50",
+      "total_estimated": "$18-22"
+    }
+  },
+  "instance_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "i-07b8da922b312514a"
+  },
+  "public_dns": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ec2-54-167-55-68.compute-1.amazonaws.com"
+  },
+  "public_ip": {
+    "sensitive": false,
+    "type": "string",
+    "value": "35.153.246.131"
+  },
+  "route53_name_servers": {
+    "sensitive": false,
+    "type": [
+      "list",
+      "string"
+    ],
+    "value": [
+      "ns-1408.awsdns-48.org",
+      "ns-20.awsdns-02.com",
+      "ns-2000.awsdns-58.co.uk",
+      "ns-617.awsdns-13.net"
+    ]
+  },
+  "route53_zone_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "Z0564920389DHLZMVZJSW"
+  },
+  "security_group_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "sg-05b1830826c6bdc07"
+  },
+  "ssh_command": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ssh -i ~/.ssh/trading-platform ec2-user@35.153.246.131"
+  },
+  "subnet_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "subnet-025c7216533edd5f6"
+  },
+  "vpc_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "vpc-0b2b28f225ba9565d"
+  }
+}
