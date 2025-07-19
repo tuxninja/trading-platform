@@ -27,6 +27,7 @@ trading_app.log
 .env
 .env.local
 .env.production
+.api-keys
 
 # Node.js
 node_modules/

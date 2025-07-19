@@ -78,8 +78,8 @@ test_ssh_connection() {
 get_latest_images() {
     print_status "Getting latest image information..."
     
-    if [ -f "../../deployment/latest-images.env" ]; then
-        source ../../deployment/latest-images.env
+    if [ -f "../latest-images.env" ]; then
+        source ../latest-images.env
         print_success "Using images from latest build:"
         echo "  Backend: $BACKEND_IMAGE"
         echo "  Frontend: $FRONTEND_IMAGE"

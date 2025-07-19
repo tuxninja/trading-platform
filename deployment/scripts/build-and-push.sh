@@ -62,13 +62,13 @@ aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --
 # Build backend image
 echo -e "${YELLOW}🏗️  Building backend image...${NC}"
 cd ../../backend
-docker build -t $ECR_BACKEND_URL:$IMAGE_TAG .
+docker build --platform linux/amd64 -t $ECR_BACKEND_URL:$IMAGE_TAG .
 docker tag $ECR_BACKEND_URL:$IMAGE_TAG $ECR_BACKEND_URL:latest
 
 # Build frontend image
 echo -e "${YELLOW}🏗️  Building frontend image...${NC}"
 cd ../frontend
-docker build -t $ECR_FRONTEND_URL:$IMAGE_TAG .
+docker build --platform linux/amd64 -t $ECR_FRONTEND_URL:$IMAGE_TAG .
 docker tag $ECR_FRONTEND_URL:$IMAGE_TAG $ECR_FRONTEND_URL:latest
 
 # Push images
@@ -90,7 +90,7 @@ echo "  Backend: $ECR_BACKEND_URL:$IMAGE_TAG"
 echo "  Frontend: $ECR_FRONTEND_URL:$IMAGE_TAG"
 
 # Output for use in other scripts
-echo "BACKEND_IMAGE=$ECR_BACKEND_URL:$IMAGE_TAG" > ../../deployment/latest-images.env
-echo "FRONTEND_IMAGE=$ECR_FRONTEND_URL:$IMAGE_TAG" >> ../../deployment/latest-images.env
+echo "BACKEND_IMAGE=$ECR_BACKEND_URL:$IMAGE_TAG" > ../deployment/latest-images.env
+echo "FRONTEND_IMAGE=$ECR_FRONTEND_URL:$IMAGE_TAG" >> ../deployment/latest-images.env
 
 echo -e "${GREEN}🎉 Build and push process completed!${NC}"
