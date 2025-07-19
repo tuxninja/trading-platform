@@ -9,6 +9,28 @@ const api = axios.create({
   },
 });
 
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Trades API
 export const tradesAPI = {
   getAll: () => api.get('/api/trades').then(res => res.data),
@@ -60,4 +82,15 @@ export const strategyAPI = {
   run: () => api.post('/api/run-strategy').then(res => res.data),
 };
 
-export default api; 
+// Auth API
+export const authAPI = {
+  googleLogin: (token) => api.post('/api/auth/google', { token }).then(res => res.data),
+  getCurrentUser: () => api.get('/api/auth/me').then(res => res.data),
+  logout: () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  }
+};
+
+export { api }; 

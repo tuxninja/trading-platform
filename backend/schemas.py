@@ -121,4 +121,12 @@ class BulkSentimentResponse(BaseModel):
     errors: List[str]
     total_processed: int
     successful: int
-    failed: int 
+    failed: int
+
+class GoogleLoginRequest(BaseModel):
+    token: str
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: dict 

@@ -15,7 +15,8 @@ from models import Trade, SentimentData, StockData, TradeRecommendation
 from schemas import (
     TradeCreate, TradeResponse, SentimentResponse,
     SentimentAnalysisRequest, BulkSentimentResponse,
-    TradeRecommendationResponse, MarketScanResult
+    TradeRecommendationResponse, MarketScanResult,
+    GoogleLoginRequest, AuthResponse
 )
 from services.trading_service import TradingService
 from services.sentiment_service import SentimentService
@@ -24,6 +25,7 @@ from services.recommendation_service import RecommendationService
 from services.market_scanner import MarketScannerService
 from config import config, setup_logging
 from exceptions import TradingAppException
+from auth import auth_service, get_current_user, optional_auth
 
 # Setup logging
 logger = setup_logging()
@@ -76,6 +78,47 @@ logger.info(f"Configuration loaded successfully")
 @app.get("/")
 async def root():
     return {"message": "Trading Sentiment Analysis API"}
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint for debugging"""
+    return {
+        "status": "healthy",
+        "google_client_id_configured": bool(auth_service.google_client_id),
+        "cors_origins": config.CORS_ORIGINS
+    }
+
+# Authentication endpoints
+@app.post("/api/auth/google", response_model=AuthResponse)
+async def google_login(login_request: GoogleLoginRequest):
+    """Authenticate user with Google OAuth token"""
+    try:
+        logger.info(f"Received Google OAuth login request")
+        logger.info(f"Token length: {len(login_request.token) if login_request.token else 'None'}")
+        logger.info(f"Google Client ID configured: {bool(auth_service.google_client_id)}")
+        
+        user_data = auth_service.verify_google_token(login_request.token)
+        logger.info(f"Google token verified for user: {user_data.get('email', 'unknown')}")
+        
+        jwt_token = auth_service.create_jwt_token(user_data)
+        logger.info(f"JWT token created successfully")
+        
+        return AuthResponse(
+            access_token=jwt_token,
+            token_type="bearer",
+            user=user_data
+        )
+    except HTTPException as e:
+        logger.error(f"HTTP Exception in Google auth: {e.detail}")
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error in Google authentication: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
+@app.get("/api/auth/me")
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """Get current authenticated user information"""
+    return {"user": current_user}
 
 @app.get("/api/trades")
 async def get_trades(db: Session = Depends(get_db)):

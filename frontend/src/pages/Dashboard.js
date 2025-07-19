@@ -11,32 +11,73 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { performanceAPI, tradesAPI, sentimentAPI } from '../services/api';
 
 const Dashboard = () => {
-  const { data: performance, isLoading: performanceLoading } = useQuery(
+  const { data: performance, isLoading: performanceLoading, error: performanceError } = useQuery(
     'performance',
-    performanceAPI.getMetrics
+    performanceAPI.getMetrics,
+    {
+      onError: (error) => {
+        console.error('Performance API error:', error);
+      }
+    }
   );
 
-  const { data: trades, isLoading: tradesLoading } = useQuery(
+  const { data: trades, isLoading: tradesLoading, error: tradesError } = useQuery(
     'trades',
-    tradesAPI.getAll
+    tradesAPI.getAll,
+    {
+      onError: (error) => {
+        console.error('Trades API error:', error);
+      }
+    }
   );
 
-  const { data: sentiment, isLoading: sentimentLoading } = useQuery(
+  const { data: sentiment, isLoading: sentimentLoading, error: sentimentError } = useQuery(
     'sentiment',
-    sentimentAPI.getAll
+    sentimentAPI.getAll,
+    {
+      onError: (error) => {
+        console.error('Sentiment API error:', error);
+      }
+    }
   );
 
-  const { data: portfolioHistory, isLoading: historyLoading } = useQuery(
+  const { data: portfolioHistory, isLoading: historyLoading, error: historyError } = useQuery(
     'portfolio-history',
-    () => performanceAPI.getHistory(30)
+    () => performanceAPI.getHistory(30),
+    {
+      onError: (error) => {
+        console.error('Portfolio history API error:', error);
+      }
+    }
   );
 
   const isLoading = performanceLoading || tradesLoading || sentimentLoading || historyLoading;
+  const hasErrors = performanceError || tradesError || sentimentError || historyError;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
+  if (hasErrors) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-md p-4">
+        <h3 className="text-lg font-medium text-red-800">Dashboard Loading Error</h3>
+        <div className="mt-2 text-sm text-red-700">
+          {performanceError && <p>Performance API: {performanceError.message}</p>}
+          {tradesError && <p>Trades API: {tradesError.message}</p>}
+          {sentimentError && <p>Sentiment API: {sentimentError.message}</p>}
+          {historyError && <p>Portfolio History API: {historyError.message}</p>}
+        </div>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-3 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+        >
+          Retry
+        </button>
       </div>
     );
   }

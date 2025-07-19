@@ -1,6 +1,6 @@
-# Trading Sentiment Analysis Platform
+# Trading Sentiment Analysis SaaS Platform
 
-A comprehensive paper trading platform that uses sentiment analysis to generate trading recommendations and track portfolio performance.
+A comprehensive SaaS paper trading platform that uses sentiment analysis to generate trading recommendations and track portfolio performance. Built for traders, investors, and financial professionals who want to test strategies risk-free.
 
 ![Trading Platform](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.68+-green.svg)
@@ -398,20 +398,31 @@ trading-platform/
 └── docs/                   # Project documentation
 ```
 
-## 🤝 Contributing
+## 🔐 Authentication
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+The platform uses Google OAuth for secure user authentication:
 
-### Development Guidelines
-- Follow PEP 8 for Python code
-- Use meaningful commit messages
-- Add tests for new features
-- Update documentation as needed
-- Ensure all tests pass before submitting PR
+1. **Setup Google OAuth:**
+   - Create a Google Cloud project
+   - Enable Google+ API
+   - Create OAuth 2.0 credentials
+   - Add your domain to authorized origins
+
+2. **Configure Environment:**
+   ```bash
+   # Backend (.env)
+   GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
+   JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+   
+   # Frontend (.env.local)
+   REACT_APP_GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
+   ```
+
+3. **Features:**
+   - Secure JWT-based session management
+   - Automatic token refresh
+   - Protected routes and API endpoints
+   - User profile integration
 
 ## 📄 License
 
@@ -420,9 +431,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙋 Support
 
 - 📚 Documentation: Check the `/docs` folder and service-specific READMEs
-- 🐛 Issues: Report bugs via GitHub Issues
-- 💬 Questions: Start a discussion in GitHub Discussions
-- 📧 Contact: [your-email@example.com]
+- 🐛 Issues: Report technical issues or bugs
+- 📧 Contact: For business inquiries and support
 
 ## 🔮 Roadmap
 
@@ -430,10 +440,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Advanced technical indicators
 - [ ] Machine learning models for prediction
 - [ ] Mobile application
-- [ ] Multi-user support with authentication
+- [x] User authentication with Google OAuth
 - [ ] Advanced portfolio analytics
 - [ ] Options trading support
 - [ ] Real-time WebSocket updates
+- [ ] Subscription-based SaaS features
 
 ---
 
