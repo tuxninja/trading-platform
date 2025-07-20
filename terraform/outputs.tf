@@ -70,14 +70,19 @@ output "ssh_command" {
   value       = "ssh -i ~/.ssh/${var.project_name} ec2-user@${aws_eip.main.public_ip}"
 }
 
-output "github_actions_ip_count" {
-  description = "Number of GitHub Actions IP ranges allowed SSH access"
-  value       = length(local.github_actions_ips)
+output "github_actions_ipv4_count" {
+  description = "Number of GitHub Actions IPv4 ranges allowed SSH access"
+  value       = length(local.github_actions_ipv4)
 }
 
-output "all_ssh_allowed_ips_sample" {
-  description = "Sample of SSH allowed IP ranges (first 5)"
-  value       = slice(local.all_ssh_allowed_ips, 0, min(5, length(local.all_ssh_allowed_ips)))
+output "github_actions_ipv6_count" {
+  description = "Number of GitHub Actions IPv6 ranges allowed SSH access"
+  value       = length(local.github_actions_ipv6)
+}
+
+output "all_ssh_allowed_ipv4_sample" {
+  description = "Sample of SSH allowed IPv4 ranges (first 5)"
+  value       = slice(local.all_ssh_allowed_ipv4, 0, min(5, length(local.all_ssh_allowed_ipv4)))
 }
 
 # Cost Estimation Output

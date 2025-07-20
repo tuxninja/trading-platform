@@ -49,10 +49,19 @@ data "http" "github_meta" {
 
 locals {
   github_meta = jsondecode(data.http.github_meta.response_body)
-  github_actions_ips = local.github_meta.actions
   
-  # Combine user-specified IPs with GitHub Actions IPs
-  all_ssh_allowed_ips = concat(var.ssh_allowed_ips, local.github_actions_ips)
+  # Filter GitHub Actions IPs to only include IPv4 (contains ".")
+  github_actions_ipv4 = [
+    for ip in local.github_meta.actions : ip if can(regex("\\.", ip))
+  ]
+  
+  # Filter GitHub Actions IPs to only include IPv6 (contains ":")
+  github_actions_ipv6 = [
+    for ip in local.github_meta.actions : ip if can(regex(":", ip))
+  ]
+  
+  # Combine user-specified IPs with GitHub Actions IPv4 IPs
+  all_ssh_allowed_ipv4 = concat(var.ssh_allowed_ips, local.github_actions_ipv4)
 }
 
 # VPC and Networking
@@ -126,13 +135,22 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # SSH (restricted to specific IPs + GitHub Actions)
+  # SSH (restricted to specific IPv4 IPs + GitHub Actions IPv4)
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = local.all_ssh_allowed_ips
-    description = "SSH access for admins and GitHub Actions"
+    cidr_blocks = local.all_ssh_allowed_ipv4
+    description = "SSH access for admins and GitHub Actions (IPv4)"
+  }
+
+  # SSH (GitHub Actions IPv6)
+  ingress {
+    from_port        = 22
+    to_port          = 22
+    protocol         = "tcp"
+    ipv6_cidr_blocks = local.github_actions_ipv6
+    description      = "SSH access for GitHub Actions (IPv6)"
   }
 
   # Backend API (for internal communication)
