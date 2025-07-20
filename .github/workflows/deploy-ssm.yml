@@ -1,0 +1,73 @@
+name: Deploy via SSM (Alternative)
+
+on:
+  workflow_dispatch:  # Manual trigger for testing
+
+env:
+  AWS_REGION: us-east-1
+  EC2_INSTANCE_ID: i-1234567890abcdef0  # Replace with your instance ID
+
+jobs:
+  deploy-ssm:
+    runs-on: ubuntu-latest
+    name: Deploy via AWS Systems Manager
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Create deployment package
+      run: |
+        mkdir deployment-package
+        cp docker-compose.prod.yml deployment-package/
+        
+        # Create deployment script
+        cat > deployment-package/deploy.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        cd /opt/trading
+        
+        # Login to ECR
+        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+        
+        # Pull new images
+        docker pull $1
+        docker pull $2
+        
+        # Update docker-compose file
+        sed -i "s|backend:.*|$1|g" docker-compose.prod.yml
+        sed -i "s|frontend:.*|$2|g" docker-compose.prod.yml
+        
+        # Restart services
+        docker-compose down
+        docker-compose up -d
+        
+        echo "Deployment completed successfully"
+        EOF
+
+    - name: Copy files to EC2 via S3
+      run: |
+        # Upload to S3 bucket (create one if needed)
+        aws s3 cp deployment-package/ s3://your-deployment-bucket/latest/ --recursive
+
+    - name: Deploy via Systems Manager
+      run: |
+        # Execute deployment via SSM
+        aws ssm send-command \
+          --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=[
+            "aws s3 cp s3://your-deployment-bucket/latest/ /tmp/deployment/ --recursive",
+            "chmod +x /tmp/deployment/deploy.sh",
+            "AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} /tmp/deployment/deploy.sh ${{ needs.build-and-push.outputs.backend-image }} ${{ needs.build-and-push.outputs.frontend-image }}"
+          ]' \
+          --output text \
+          --query "Command.CommandId"
