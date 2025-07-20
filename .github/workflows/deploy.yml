@@ -143,6 +143,12 @@ jobs:
         sed -i "s|backend:.*|${{ needs.build-and-push.outputs.backend-image }}|g" deployment-package/docker-compose.prod.yml
         sed -i "s|frontend:.*|${{ needs.build-and-push.outputs.frontend-image }}|g" deployment-package/docker-compose.prod.yml
 
+    - name: Get ECR Login Token
+      id: ecr-token
+      run: |
+        ECR_TOKEN=$(aws ecr get-login-password --region us-east-1)
+        echo "ecr-token=$ECR_TOKEN" >> $GITHUB_OUTPUT
+
     - name: Deploy to EC2
       env:
         PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -151,6 +157,7 @@ jobs:
         AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        ECR_LOGIN_TOKEN: ${{ steps.ecr-token.outputs.ecr-token }}
       run: |
         echo "$PRIVATE_KEY" > private_key.pem
         chmod 600 private_key.pem
@@ -220,15 +227,26 @@ jobs:
           echo "📋 Files in directory:"
           ls -la
           
+          # Test AWS credentials
+          echo "🔍 Testing AWS credentials..."
+          aws sts get-caller-identity || echo "IAM role authentication failed, trying with passed credentials"
+          
           # Set AWS credentials for ECR access
           export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
           export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
           export AWS_DEFAULT_REGION="us-east-1"
           
-          # Login to ECR using AWS account ID
+          # Test credentials again
+          echo "🔍 Testing passed credentials..."
+          aws sts get-caller-identity
+          
+          # Login to ECR using pre-generated token
           echo "🔐 Logging into ECR..."
           ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY
+          
+          # Use pre-generated ECR token from GitHub Actions
+          echo "Attempting ECR login to \$ECR_REGISTRY with pre-generated token"
+          echo "${ECR_LOGIN_TOKEN}" | docker login --username AWS --password-stdin \$ECR_REGISTRY
           
           # Check if update script exists
           if [ ! -f "./update.sh" ]; then
