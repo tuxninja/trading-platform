@@ -148,6 +148,8 @@ jobs:
       run: |
         ECR_TOKEN=$(aws ecr get-login-password --region us-east-1)
         echo "ecr-token=$ECR_TOKEN" >> $GITHUB_OUTPUT
+        # Save token to file for reliable transfer
+        echo "$ECR_TOKEN" > ecr_token.txt
 
     - name: Deploy to EC2
       env:
@@ -157,7 +159,6 @@ jobs:
         AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        ECR_LOGIN_TOKEN: ${{ steps.ecr-token.outputs.ecr-token }}
       run: |
         echo "$PRIVATE_KEY" > private_key.pem
         chmod 600 private_key.pem
@@ -210,6 +211,7 @@ jobs:
             -o ConnectTimeout=30 \
             -o BatchMode=yes \
             deployment-package/docker-compose.prod.yml \
+            ecr_token.txt \
             $USER@$HOST:/opt/trading/
         
         # Execute deployment
@@ -244,18 +246,20 @@ jobs:
           echo "🔐 Logging into ECR..."
           ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
           
-          # Debug token presence and length
+          # Debug token file presence
           echo "🔍 ECR Token Debug:"
-          if [ -z "${ECR_LOGIN_TOKEN}" ]; then
-            echo "❌ ECR_LOGIN_TOKEN is empty or not set"
+          if [ -f "ecr_token.txt" ]; then
+            TOKEN_LENGTH=\$(wc -c < ecr_token.txt)
+            echo "✅ ECR token file found (size: \$TOKEN_LENGTH bytes)"
           else
-            echo "✅ ECR_LOGIN_TOKEN is present (length: \${#ECR_LOGIN_TOKEN})"
+            echo "❌ ECR token file not found"
           fi
           
           # Try multiple authentication methods
-          echo "🔄 Method 1: Pre-generated token from GitHub Actions"
-          if echo "${ECR_LOGIN_TOKEN}" | docker login --username AWS --password-stdin \$ECR_REGISTRY; then
+          echo "🔄 Method 1: Pre-generated token from GitHub Actions (file)"
+          if [ -f "ecr_token.txt" ] && cat ecr_token.txt | docker login --username AWS --password-stdin \$ECR_REGISTRY; then
             echo "✅ ECR login successful with pre-generated token"
+            rm -f ecr_token.txt  # Clean up token file
           else
             echo "❌ Pre-generated token failed, trying direct ECR authentication..."
             
@@ -289,6 +293,7 @@ jobs:
         
         # Cleanup
         rm private_key.pem
+        rm -f ecr_token.txt
 
     - name: Verify Deployment
       env:
