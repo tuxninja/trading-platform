@@ -242,36 +242,89 @@ jobs:
           echo "🔍 Testing passed credentials..."
           aws sts get-caller-identity
           
-          # Login to ECR using pre-generated token
-          echo "🔐 Logging into ECR..."
-          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
+          # Comprehensive system diagnostics before ECR login
+          echo "🔍 System Diagnostics:"
+          echo "Current date/time: \$(date)"
+          echo "Docker version: \$(docker --version)"
+          echo "Docker daemon status:"
+          systemctl is-active docker || echo "Docker service status unknown"
           
-          # Debug token file presence
+          echo "🌐 Network Diagnostics:"
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
+          echo "Registry URL: \$ECR_REGISTRY"
+          echo "DNS resolution test:"
+          nslookup \$ECR_REGISTRY || echo "DNS resolution failed"
+          echo "Network connectivity test:"
+          curl -I --connect-timeout 10 https://\$ECR_REGISTRY/v2/ || echo "HTTPS connectivity failed"
+          
+          # Test Docker daemon
+          echo "🐳 Docker Daemon Test:"
+          docker info || echo "Docker info failed"
+          
+          # Login to ECR
+          echo "🔐 Logging into ECR..."
+          
+          # Debug token file presence  
           echo "🔍 ECR Token Debug:"
           if [ -f "ecr_token.txt" ]; then
             TOKEN_LENGTH=\$(wc -c < ecr_token.txt)
             echo "✅ ECR token file found (size: \$TOKEN_LENGTH bytes)"
+            echo "Token first 50 chars: \$(head -c 50 ecr_token.txt)..."
           else
             echo "❌ ECR token file not found"
           fi
           
-          # Try multiple authentication methods
-          echo "🔄 Method 1: Pre-generated token from GitHub Actions (file)"
-          if [ -f "ecr_token.txt" ] && cat ecr_token.txt | docker login --username AWS --password-stdin \$ECR_REGISTRY; then
-            echo "✅ ECR login successful with pre-generated token"
-            rm -f ecr_token.txt  # Clean up token file
-          else
-            echo "❌ Pre-generated token failed, trying direct ECR authentication..."
-            
-            echo "🔄 Method 2: Direct ECR authentication on EC2"
-            if aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY; then
-              echo "✅ ECR login successful with direct authentication"
+          # Method 1: Pre-generated token with explicit registry
+          echo "🔄 Method 1: Pre-generated token from GitHub Actions"
+          if [ -f "ecr_token.txt" ]; then
+            echo "Attempting login to \$ECR_REGISTRY"
+            if cat ecr_token.txt | docker login --username AWS --password-stdin \$ECR_REGISTRY 2>&1; then
+              echo "✅ ECR login successful with pre-generated token"
+              rm -f ecr_token.txt
             else
-              echo "❌ Both authentication methods failed"
-              echo "🔍 Additional debugging:"
-              echo "Registry: \$ECR_REGISTRY"
-              aws ecr describe-repositories --region us-east-1 || echo "Failed to list ECR repositories"
-              exit 1
+              echo "❌ Pre-generated token failed"
+              
+              # Method 2: Try without explicit registry
+              echo "🔄 Method 1b: Pre-generated token without explicit registry"
+              if cat ecr_token.txt | docker login --username AWS --password-stdin 2>&1; then
+                echo "✅ ECR login successful without explicit registry"
+                rm -f ecr_token.txt
+              else
+                echo "❌ Pre-generated token failed completely"
+                rm -f ecr_token.txt
+                
+                # Method 3: Direct ECR authentication
+                echo "🔄 Method 2: Direct ECR authentication on EC2"
+                if aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY 2>&1; then
+                  echo "✅ ECR login successful with direct authentication"
+                else
+                  echo "❌ Direct authentication failed"
+                  
+                  # Method 4: Legacy docker login approach
+                  echo "🔄 Method 3: Legacy ECR login approach"
+                  LOGIN_CMD=\$(aws ecr get-login --region us-east-1 --no-include-email 2>/dev/null || echo "")
+                  if [ ! -z "\$LOGIN_CMD" ]; then
+                    eval \$LOGIN_CMD && echo "✅ Legacy ECR login successful" || echo "❌ Legacy login failed"
+                  else
+                    echo "❌ Legacy login command not available"
+                  fi
+                  
+                  # Method 5: Try restarting Docker daemon
+                  echo "🔄 Method 4: Restart Docker daemon and retry"
+                  sudo systemctl restart docker
+                  sleep 5
+                  if aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY 2>&1; then
+                    echo "✅ ECR login successful after Docker restart"
+                  else
+                    echo "❌ All ECR authentication methods failed"
+                    echo "🔍 Final debugging info:"
+                    echo "Registry: \$ECR_REGISTRY"
+                    aws ecr describe-repositories --region us-east-1 || echo "Failed to list ECR repositories"
+                    docker system info || echo "Docker system info failed"
+                    exit 1
+                  fi
+                fi
+              fi
             fi
           fi
           
