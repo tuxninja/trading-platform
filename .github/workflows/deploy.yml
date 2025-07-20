@@ -148,23 +148,94 @@ jobs:
         PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         HOST: ${{ secrets.EC2_HOST }}
         USER: ec2-user
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       run: |
         echo "$PRIVATE_KEY" > private_key.pem
         chmod 600 private_key.pem
         
+        # Debug information
+        echo "🔍 Deployment Debug Info:"
+        echo "Host: $HOST"
+        echo "User: $USER"
+        echo "AWS Account ID: $AWS_ACCOUNT_ID"
+        echo "Backend Image: ${{ needs.build-and-push.outputs.backend-image }}"
+        echo "Frontend Image: ${{ needs.build-and-push.outputs.frontend-image }}"
+        
+        # Test network connectivity to host
+        echo "🌐 Testing network connectivity..."
+        ping -c 3 $HOST || echo "⚠️ Ping failed (might be disabled)"
+        
+        # Test SSH connectivity with multiple attempts
+        echo "🔐 Testing SSH connectivity..."
+        for i in {1..3}; do
+          echo "SSH attempt $i/3..."
+          if ssh -i private_key.pem \
+                 -o StrictHostKeyChecking=no \
+                 -o ConnectTimeout=30 \
+                 -o ServerAliveInterval=60 \
+                 -o BatchMode=yes \
+                 $USER@$HOST "echo 'SSH connection successful'"; then
+            echo "✅ SSH connection verified"
+            SSH_SUCCESS=true
+            break
+          else
+            echo "❌ SSH attempt $i failed"
+            if [ $i -eq 3 ]; then
+              echo "❌ All SSH attempts failed"
+              echo "🔍 Troubleshooting tips:"
+              echo "1. Verify EC2_HOST secret contains the correct public IP address"
+              echo "2. Check if EC2 instance is running and accessible"
+              echo "3. Verify security group allows SSH (port 22) from GitHub Actions"
+              echo "4. Ensure EC2_SSH_PRIVATE_KEY secret contains the correct private key"
+              rm private_key.pem
+              exit 1
+            fi
+            sleep 10
+          fi
+        done
+        
         # Copy deployment files
-        scp -i private_key.pem -o StrictHostKeyChecking=no \
+        echo "📄 Copying deployment files..."
+        scp -i private_key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o BatchMode=yes \
             deployment-package/docker-compose.prod.yml \
             $USER@$HOST:/opt/trading/
         
         # Execute deployment
-        ssh -i private_key.pem -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
+        echo "🚀 Executing deployment on EC2..."
+        ssh -i private_key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=60 \
+            -o BatchMode=yes \
+            $USER@$HOST << EOF
+          set -e
           cd /opt/trading
           
-          # Login to ECR
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+          echo "📁 Current directory: \$(pwd)"
+          echo "📋 Files in directory:"
+          ls -la
+          
+          # Login to ECR using AWS account ID
+          echo "🔐 Logging into ECR..."
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY
+          
+          # Check if update script exists
+          if [ ! -f "./update.sh" ]; then
+            echo "❌ update.sh script not found in /opt/trading"
+            echo "📋 Available files:"
+            ls -la
+            exit 1
+          fi
+          
+          # Make update script executable
+          chmod +x ./update.sh
           
           # Run update script
+          echo "🔄 Running update script..."
           ./update.sh ${{ needs.build-and-push.outputs.backend-image }} ${{ needs.build-and-push.outputs.frontend-image }}
         EOF
         
