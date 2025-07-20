@@ -93,4 +93,38 @@ export const authAPI = {
   }
 };
 
+// Admin API
+export const adminAPI = {
+  // Dashboard
+  getDashboard: () => api.get('/api/admin/dashboard').then(res => res.data),
+  
+  // User Management
+  getUsers: (params = {}) => api.get('/api/admin/users', { params }).then(res => res.data),
+  getUserActivity: (userId, limit = 100) => api.get(`/api/admin/users/${userId}/activity?limit=${limit}`).then(res => res.data),
+  updateUserStatus: (userId, isActive) => api.post(`/api/admin/users/${userId}/status`, { is_active: isActive }).then(res => res.data),
+  updateUserAdminStatus: (userId, isAdmin) => api.post(`/api/admin/users/${userId}/admin`, { is_admin: isAdmin }).then(res => res.data),
+  
+  // System Health
+  getSystemHealth: () => api.get('/api/admin/health').then(res => res.data),
+  getSystemMetrics: (params = {}) => api.get('/api/admin/metrics', { params }).then(res => res.data),
+  
+  // Analytics
+  getUsageAnalytics: (days = 30) => api.get(`/api/admin/analytics/usage?days=${days}`).then(res => res.data),
+  getPlatformAnalytics: () => api.get('/api/admin/analytics/platform').then(res => res.data),
+  
+  // Configuration
+  getFeatureFlags: () => api.get('/api/admin/config/features').then(res => res.data),
+  updateFeatureFlag: (flagId, isEnabled, rolloutPercentage = 0) => 
+    api.put(`/api/admin/config/features/${flagId}`, { is_enabled: isEnabled, rollout_percentage: rolloutPercentage }).then(res => res.data),
+  getSystemConfig: (category = null) => api.get('/api/admin/config/system', { params: { category } }).then(res => res.data),
+  
+  // Data Management
+  createDataExport: (exportType, filters = {}) => 
+    api.post('/api/admin/data/export', { export_type: exportType, filters }).then(res => res.data),
+  getDataExports: () => api.get('/api/admin/data/exports').then(res => res.data),
+  
+  // Activity Logs
+  getAllActivity: (params = {}) => api.get('/api/admin/activity', { params }).then(res => res.data)
+};
+
 export { api }; 

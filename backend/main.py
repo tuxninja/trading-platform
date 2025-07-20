@@ -26,6 +26,7 @@ from services.market_scanner import MarketScannerService
 from config import config, setup_logging
 from exceptions import TradingAppException
 from auth import auth_service, get_current_user, optional_auth
+from admin_api import admin_router
 
 # Setup logging
 logger = setup_logging()
@@ -38,6 +39,9 @@ app = FastAPI(
     version="1.0.0",
     description="Sentiment-based paper trading system"
 )
+
+# Include admin routes
+app.include_router(admin_router)
 
 # CORS middleware
 app.add_middleware(

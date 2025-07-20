@@ -1,0 +1,29 @@
+{
+  "backup_dir": "/backups/trading_platform",
+  "database": {
+    "type": "sqlite",
+    "name": "trading_app.db",
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
+    "password": ""
+  },
+  "retention": {
+    "daily": 7,
+    "weekly": 4,
+    "monthly": 12
+  },
+  "directories": [
+    "backend",
+    "frontend/build",
+    "docs"
+  ],
+  "exclude_patterns": [
+    "*.log",
+    "node_modules",
+    "__pycache__",
+    "*.pyc",
+    ".git",
+    "venv"
+  ]
+}
