@@ -48,20 +48,20 @@ data "http" "github_meta" {
 }
 
 locals {
-  github_meta = jsondecode(data.http.github_meta.response_body)
-  
-  # Filter GitHub Actions IPs to only include IPv4 (contains ".")
-  github_actions_ipv4 = [
-    for ip in local.github_meta.actions : ip if can(regex("\\.", ip))
+  # For GitHub Actions, we'll allow SSH from the major cloud provider ranges
+  # This is more manageable than 100+ individual ranges
+  github_actions_friendly_cidrs = [
+    "13.64.0.0/11",     # Microsoft Azure (GitHub uses Azure for Actions)
+    "20.0.0.0/8",       # Microsoft Azure
+    "4.148.0.0/14",     # GitHub Actions primary range
+    "140.82.112.0/20",  # GitHub.com
+    "143.55.64.0/20",   # GitHub.com
+    "192.30.252.0/22",  # GitHub.com
+    "185.199.108.0/22", # GitHub.com
   ]
   
-  # Filter GitHub Actions IPs to only include IPv6 (contains ":")
-  github_actions_ipv6 = [
-    for ip in local.github_meta.actions : ip if can(regex(":", ip))
-  ]
-  
-  # Combine user-specified IPs with GitHub Actions IPv4 IPs
-  all_ssh_allowed_ipv4 = concat(var.ssh_allowed_ips, local.github_actions_ipv4)
+  # Combine user-specified IPs with GitHub Actions friendly ranges
+  all_ssh_allowed_ipv4 = concat(var.ssh_allowed_ips, local.github_actions_friendly_cidrs)
 }
 
 # VPC and Networking
@@ -135,22 +135,13 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # SSH (restricted to specific IPv4 IPs + GitHub Actions IPv4)
+  # SSH (restricted to specific IPs + GitHub Actions)
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = local.all_ssh_allowed_ipv4
-    description = "SSH access for admins and GitHub Actions (IPv4)"
-  }
-
-  # SSH (GitHub Actions IPv6)
-  ingress {
-    from_port        = 22
-    to_port          = 22
-    protocol         = "tcp"
-    ipv6_cidr_blocks = local.github_actions_ipv6
-    description      = "SSH access for GitHub Actions (IPv6)"
+    description = "SSH access for admins and GitHub Actions"
   }
 
   # Backend API (for internal communication)
