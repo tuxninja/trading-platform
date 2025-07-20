@@ -304,24 +304,43 @@ jobs:
                   echo "🔄 Method 3: Legacy ECR login approach"
                   LOGIN_CMD=\$(aws ecr get-login --region us-east-1 --no-include-email 2>/dev/null || echo "")
                   if [ ! -z "\$LOGIN_CMD" ]; then
-                    eval \$LOGIN_CMD && echo "✅ Legacy ECR login successful" || echo "❌ Legacy login failed"
+                    if eval \$LOGIN_CMD; then
+                      echo "✅ Legacy ECR login successful"
+                    else
+                      echo "❌ Legacy login failed"
+                      
+                      # Method 5: Try restarting Docker daemon
+                      echo "🔄 Method 4: Restart Docker daemon and retry"
+                      sudo systemctl restart docker
+                      sleep 5
+                      if aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY 2>&1; then
+                        echo "✅ ECR login successful after Docker restart"
+                      else
+                        echo "❌ All ECR authentication methods failed"
+                        echo "🔍 Final debugging info:"
+                        echo "Registry: \$ECR_REGISTRY"
+                        aws ecr describe-repositories --region us-east-1 || echo "Failed to list ECR repositories"
+                        docker system info || echo "Docker system info failed"
+                        exit 1
+                      fi
+                    fi
                   else
                     echo "❌ Legacy login command not available"
-                  fi
-                  
-                  # Method 5: Try restarting Docker daemon
-                  echo "🔄 Method 4: Restart Docker daemon and retry"
-                  sudo systemctl restart docker
-                  sleep 5
-                  if aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY 2>&1; then
-                    echo "✅ ECR login successful after Docker restart"
-                  else
-                    echo "❌ All ECR authentication methods failed"
-                    echo "🔍 Final debugging info:"
-                    echo "Registry: \$ECR_REGISTRY"
-                    aws ecr describe-repositories --region us-east-1 || echo "Failed to list ECR repositories"
-                    docker system info || echo "Docker system info failed"
-                    exit 1
+                    
+                    # Method 5: Try restarting Docker daemon
+                    echo "🔄 Method 4: Restart Docker daemon and retry"
+                    sudo systemctl restart docker
+                    sleep 5
+                    if aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY 2>&1; then
+                      echo "✅ ECR login successful after Docker restart"
+                    else
+                      echo "❌ All ECR authentication methods failed"
+                      echo "🔍 Final debugging info:"
+                      echo "Registry: \$ECR_REGISTRY"
+                      aws ecr describe-repositories --region us-east-1 || echo "Failed to list ECR repositories"
+                      docker system info || echo "Docker system info failed"
+                      exit 1
+                    fi
                   fi
                 fi
               fi
