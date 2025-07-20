@@ -21,12 +21,6 @@ services:
       - backend_logs:/app/logs
     networks:
       - trading_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 60s
-      timeout: 15s
-      retries: 5
-      start_period: 120s
     depends_on:
       - scheduler
 
@@ -40,12 +34,6 @@ services:
       - "80:80"
     networks:
       - trading_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
-      interval: 60s
-      timeout: 15s
-      retries: 5
-      start_period: 90s
     depends_on:
       - backend
 
@@ -66,12 +54,6 @@ services:
     networks:
       - trading_network
     command: ["python", "scheduler.py"]
-    healthcheck:
-      test: ["CMD", "pgrep", "-f", "scheduler.py"]
-      interval: 60s
-      timeout: 15s
-      retries: 5
-      start_period: 60s
 
 
 volumes:

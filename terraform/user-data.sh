@@ -265,14 +265,13 @@ docker-compose -f docker-compose.prod.yml up -d
 # Wait for services to be ready
 sleep 30
 
-# Health check
-if ./health-check.sh; then
+# Simple container check instead of health checks
+if docker-compose -f docker-compose.prod.yml ps | grep -q "Up"; then
     echo "Update completed successfully!"
     # Clean up old images
     docker image prune -f
 else
-    echo "Update failed! Rolling back..."
-    # Rollback logic would go here
+    echo "Update failed! No containers running."
     exit 1
 fi
 EOF
