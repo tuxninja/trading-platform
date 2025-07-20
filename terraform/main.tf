@@ -8,6 +8,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.4"
+    }
   }
 }
 
@@ -36,6 +40,19 @@ data "aws_ami" "amazon_linux" {
     name   = "name"
     values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
+}
+
+# Fetch GitHub Actions IP ranges
+data "http" "github_meta" {
+  url = "https://api.github.com/meta"
+}
+
+locals {
+  github_meta = jsondecode(data.http.github_meta.response_body)
+  github_actions_ips = local.github_meta.actions
+  
+  # Combine user-specified IPs with GitHub Actions IPs
+  all_ssh_allowed_ips = concat(var.ssh_allowed_ips, local.github_actions_ips)
 }
 
 # VPC and Networking
@@ -109,12 +126,13 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # SSH (restricted to specific IPs)
+  # SSH (restricted to specific IPs + GitHub Actions)
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = var.ssh_allowed_ips
+    cidr_blocks = local.all_ssh_allowed_ips
+    description = "SSH access for admins and GitHub Actions"
   }
 
   # Backend API (for internal communication)
