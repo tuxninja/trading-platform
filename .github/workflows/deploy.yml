@@ -428,7 +428,7 @@ jobs:
         
         # Check application health
         for i in {1..5}; do
-          if curl -f "http://$HOST/health"; then
+          if curl -f "http://$HOST/"; then
             echo "✅ Deployment successful!"
             break
           else
