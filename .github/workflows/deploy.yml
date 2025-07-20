@@ -140,8 +140,8 @@ jobs:
         cp docker-compose.prod.yml deployment-package/
         
         # Create updated docker-compose with new image tags
-        sed -i "s|backend:.*|${{ needs.build-and-push.outputs.backend-image }}|g" deployment-package/docker-compose.prod.yml
-        sed -i "s|frontend:.*|${{ needs.build-and-push.outputs.frontend-image }}|g" deployment-package/docker-compose.prod.yml
+        sed -i "s|image: backend:.*|image: ${{ needs.build-and-push.outputs.backend-image }}|g" deployment-package/docker-compose.prod.yml
+        sed -i "s|image: frontend:.*|image: ${{ needs.build-and-push.outputs.frontend-image }}|g" deployment-package/docker-compose.prod.yml
 
     - name: Get ECR Login Token
       id: ecr-token
