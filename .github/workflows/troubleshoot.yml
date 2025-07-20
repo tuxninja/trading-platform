@@ -1,0 +1,161 @@
+name: Troubleshoot Trading Platform
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  troubleshoot:
+    runs-on: ubuntu-latest
+    name: Troubleshoot Deployment
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Troubleshoot EC2 Instance
+      env:
+        PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        HOST: ${{ secrets.EC2_HOST }}
+        USER: ec2-user
+      run: |
+        echo "$PRIVATE_KEY" > private_key.pem
+        chmod 600 private_key.pem
+        
+        echo "🔍 Troubleshooting Trading Platform on $HOST"
+        echo "=============================================="
+        
+        # Test SSH connectivity
+        if ssh -i private_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 $USER@$HOST "echo 'SSH OK'"; then
+          echo "✅ SSH connectivity successful"
+        else
+          echo "❌ SSH connectivity failed"
+          exit 1
+        fi
+        
+        # Run comprehensive troubleshooting
+        ssh -i private_key.pem -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
+          echo "🔍 Trading Platform Troubleshooting Report"
+          echo "========================================="
+          
+          # Basic system info
+          echo "📊 System Information:"
+          echo "Date: $(date)"
+          echo "Hostname: $(hostname)"
+          echo "Public IP: $(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo 'Unable to get IP')"
+          echo
+          
+          # Change to trading directory
+          cd /opt/trading || { echo "❌ Cannot access /opt/trading"; exit 1; }
+          
+          # Docker status
+          echo "🐳 Docker Status:"
+          echo "Docker version: $(docker --version)"
+          echo "Docker daemon: $(systemctl is-active docker)"
+          echo
+          
+          # Container status
+          echo "📦 Container Status:"
+          docker ps -a
+          echo
+          
+          # Docker compose status
+          echo "🏗️ Docker Compose Status:"
+          if [ -f docker-compose.prod.yml ]; then
+            docker-compose -f docker-compose.prod.yml ps
+          else
+            echo "❌ docker-compose.prod.yml not found"
+          fi
+          echo
+          
+          # Port bindings and networking
+          echo "🌐 Network and Ports:"
+          echo "--- Docker port mappings ---"
+          docker ps --format "table {{.Names}}\t{{.Ports}}"
+          echo
+          echo "--- System listening ports ---"
+          sudo netstat -tlnp | grep -E ':(80|443|8000|3000)' || echo "No services on ports 80,443,8000,3000"
+          echo
+          
+          # Container logs (last 10 lines each)
+          echo "📋 Recent Container Logs:"
+          
+          echo "--- Frontend Container ---"
+          if docker ps -q -f name=trading-frontend | grep -q .; then
+            docker logs trading-frontend --tail 10
+          else
+            echo "Frontend container not running"
+          fi
+          echo
+          
+          echo "--- Backend Container ---"
+          if docker ps -q -f name=trading-backend | grep -q .; then
+            docker logs trading-backend --tail 10
+          else
+            echo "Backend container not running"
+          fi
+          echo
+          
+          echo "--- Scheduler Container ---"
+          if docker ps -q -f name=trading-scheduler | grep -q .; then
+            docker logs trading-scheduler --tail 10
+          else
+            echo "Scheduler container not running"
+          fi
+          echo
+          
+          # Test internal connectivity
+          echo "🔗 Internal Connectivity Tests:"
+          
+          # Test if frontend is responding internally
+          if docker ps -q -f name=trading-frontend | grep -q .; then
+            echo "Testing frontend container internal access..."
+            docker exec trading-frontend curl -f http://localhost:80/ 2>/dev/null && echo "✅ Frontend responds internally" || echo "❌ Frontend not responding internally"
+          fi
+          
+          # Test if backend is responding internally  
+          if docker ps -q -f name=trading-backend | grep -q .; then
+            echo "Testing backend container internal access..."
+            docker exec trading-backend curl -f http://localhost:8000/ 2>/dev/null && echo "✅ Backend responds internally" || echo "❌ Backend not responding internally"
+          fi
+          echo
+          
+          # Check docker-compose configuration
+          echo "📄 Docker Compose Configuration:"
+          if [ -f docker-compose.prod.yml ]; then
+            echo "✅ docker-compose.prod.yml exists"
+            echo "Services configured:"
+            grep -E "^  [a-zA-Z]" docker-compose.prod.yml | sed 's/:.*$//' | sort
+            echo
+            echo "Port mappings in compose file:"
+            grep -A 2 -B 2 "ports:" docker-compose.prod.yml || echo "No port mappings found"
+          else
+            echo "❌ docker-compose.prod.yml missing"
+          fi
+          echo
+          
+          # System resources
+          echo "💾 System Resources:"
+          echo "Disk usage:"
+          df -h / | tail -1
+          echo "Memory usage:"
+          free -h | head -2
+          echo "CPU load:"
+          uptime
+          echo
+          
+          echo "========================================="
+          echo "🏁 Troubleshooting complete!"
+        EOF
+        
+        # Cleanup
+        rm private_key.pem
