@@ -244,9 +244,32 @@ jobs:
           echo "🔐 Logging into ECR..."
           ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
           
-          # Use pre-generated ECR token from GitHub Actions
-          echo "Attempting ECR login to \$ECR_REGISTRY with pre-generated token"
-          echo "${ECR_LOGIN_TOKEN}" | docker login --username AWS --password-stdin \$ECR_REGISTRY
+          # Debug token presence and length
+          echo "🔍 ECR Token Debug:"
+          if [ -z "${ECR_LOGIN_TOKEN}" ]; then
+            echo "❌ ECR_LOGIN_TOKEN is empty or not set"
+          else
+            echo "✅ ECR_LOGIN_TOKEN is present (length: \${#ECR_LOGIN_TOKEN})"
+          fi
+          
+          # Try multiple authentication methods
+          echo "🔄 Method 1: Pre-generated token from GitHub Actions"
+          if echo "${ECR_LOGIN_TOKEN}" | docker login --username AWS --password-stdin \$ECR_REGISTRY; then
+            echo "✅ ECR login successful with pre-generated token"
+          else
+            echo "❌ Pre-generated token failed, trying direct ECR authentication..."
+            
+            echo "🔄 Method 2: Direct ECR authentication on EC2"
+            if aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \$ECR_REGISTRY; then
+              echo "✅ ECR login successful with direct authentication"
+            else
+              echo "❌ Both authentication methods failed"
+              echo "🔍 Additional debugging:"
+              echo "Registry: \$ECR_REGISTRY"
+              aws ecr describe-repositories --region us-east-1 || echo "Failed to list ECR repositories"
+              exit 1
+            fi
+          fi
           
           # Check if update script exists
           if [ ! -f "./update.sh" ]; then
