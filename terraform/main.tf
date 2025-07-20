@@ -32,9 +32,8 @@ provider "aws" {
 }
 
 provider "github" {
-  # Configuration will come from environment variables:
-  # GITHUB_TOKEN - Personal access token or GitHub App token
-  # GITHUB_OWNER - Repository owner (username or organization)
+  token = var.github_token
+  owner = var.github_owner
 }
 
 # Data sources
@@ -370,7 +369,7 @@ resource "aws_route53_record" "api" {
 
 # GitHub Actions Secret Management
 resource "github_actions_secret" "ec2_host" {
-  count           = var.auto_update_github_secrets && var.github_repository != "" ? 1 : 0
+  count           = var.auto_update_github_secrets && var.github_repository != "" && var.github_owner != "" ? 1 : 0
   repository      = var.github_repository
   secret_name     = "EC2_HOST"
   plaintext_value = aws_eip.main.public_ip

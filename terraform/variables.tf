@@ -119,8 +119,21 @@ variable "additional_tags" {
 }
 
 # GitHub Configuration
+variable "github_token" {
+  description = "GitHub Personal Access Token"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "github_owner" {
+  description = "GitHub repository owner (username or organization)"
+  type        = string
+  default     = ""
+}
+
 variable "github_repository" {
-  description = "GitHub repository name (e.g., 'user/repo')"
+  description = "GitHub repository name (just the repo name, not owner/repo)"
   type        = string
   default     = ""
 }
