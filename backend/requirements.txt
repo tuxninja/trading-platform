@@ -63,3 +63,6 @@ psycopg2-binary==2.9.9  # PostgreSQL driver (optional)
 
 # Logging and monitoring
 structlog==23.2.0
+
+# System and process utilities
+psutil==5.9.6
