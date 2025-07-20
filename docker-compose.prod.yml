@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: backend:latest
     container_name: trading-backend
     restart: unless-stopped
     environment:
@@ -33,9 +31,7 @@ services:
       - scheduler
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: frontend:latest
     container_name: trading-frontend
     restart: unless-stopped
     environment:
@@ -54,9 +50,7 @@ services:
       - backend
 
   scheduler:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: backend:latest
     container_name: trading-scheduler
     restart: unless-stopped
     environment:
