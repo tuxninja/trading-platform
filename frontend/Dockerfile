@@ -35,14 +35,14 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copy built application from builder stage
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Create nginx user and set permissions
+# Create nginx user and set permissions (but run as root for port 80)
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /var/cache/nginx && \
     chown -R nginx:nginx /var/log/nginx && \
     chown -R nginx:nginx /etc/nginx/conf.d
 
-# Switch to nginx user
-USER nginx
+# Don't switch to nginx user - nginx will handle user switching internally
+# USER nginx (commented out - nginx master needs root for port 80)
 
 # Expose port
 EXPOSE 80
