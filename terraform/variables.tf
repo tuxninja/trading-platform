@@ -117,3 +117,16 @@ variable "additional_tags" {
   type        = map(string)
   default     = {}
 }
+
+# GitHub Configuration
+variable "github_repository" {
+  description = "GitHub repository name (e.g., 'user/repo')"
+  type        = string
+  default     = ""
+}
+
+variable "auto_update_github_secrets" {
+  description = "Automatically update GitHub secrets with new EC2 IP"
+  type        = bool
+  default     = true
+}

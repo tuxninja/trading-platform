@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/http"
       version = "~> 3.4"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -25,6 +29,12 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
+}
+
+provider "github" {
+  # Configuration will come from environment variables:
+  # GITHUB_TOKEN - Personal access token or GitHub App token
+  # GITHUB_OWNER - Repository owner (username or organization)
 }
 
 # Data sources
@@ -356,4 +366,12 @@ resource "aws_route53_record" "api" {
   type    = "CNAME"
   ttl     = 300
   records = [var.domain_name]
+}
+
+# GitHub Actions Secret Management
+resource "github_actions_secret" "ec2_host" {
+  count           = var.auto_update_github_secrets && var.github_repository != "" ? 1 : 0
+  repository      = var.github_repository
+  secret_name     = "EC2_HOST"
+  plaintext_value = aws_eip.main.public_ip
 }
