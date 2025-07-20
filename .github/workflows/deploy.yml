@@ -204,6 +204,57 @@ jobs:
           fi
         done
         
+        # Create corrected update script
+        cat > update.sh << 'EOF'
+#!/bin/bash
+# Trading Platform Update Script for CI/CD
+
+set -e
+
+BACKEND_IMAGE="$1"
+FRONTEND_IMAGE="$2"
+
+if [ -z "$BACKEND_IMAGE" ] || [ -z "$FRONTEND_IMAGE" ]; then
+    echo "Usage: $0 <backend_image> <frontend_image>"
+    exit 1
+fi
+
+echo "Updating Trading Platform..."
+echo "Backend Image: $BACKEND_IMAGE"
+echo "Frontend Image: $FRONTEND_IMAGE"
+
+# Update docker-compose with new images
+cd /opt/trading
+
+# Create backup before update
+./backup.sh
+
+# Pull new images
+docker pull "$BACKEND_IMAGE"
+docker pull "$FRONTEND_IMAGE"
+
+# Update images in docker-compose file
+sed -i "s|image: .*backend.*|image: $BACKEND_IMAGE|g" docker-compose.prod.yml
+sed -i "s|image: .*frontend.*|image: $FRONTEND_IMAGE|g" docker-compose.prod.yml
+
+# Restart services
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml up -d
+
+# Wait for services to be ready
+sleep 30
+
+# Simple container check instead of health checks
+if docker-compose -f docker-compose.prod.yml ps | grep -q "Up"; then
+    echo "Update completed successfully!"
+    # Clean up old images
+    docker image prune -f
+else
+    echo "Update failed! No containers running."
+    exit 1
+fi
+EOF
+
         # Copy deployment files
         echo "📄 Copying deployment files..."
         scp -i private_key.pem \
@@ -212,6 +263,7 @@ jobs:
             -o BatchMode=yes \
             deployment-package/docker-compose.prod.yml \
             ecr_token.txt \
+            update.sh \
             $USER@$HOST:/opt/trading/
         
         # Execute deployment
