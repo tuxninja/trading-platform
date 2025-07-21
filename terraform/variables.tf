@@ -98,6 +98,13 @@ variable "alpha_vantage_key" {
   default     = ""
 }
 
+variable "google_client_id" {
+  description = "Google OAuth Client ID for frontend authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # Cost Controls
 variable "enable_detailed_monitoring" {
   description = "Enable detailed CloudWatch monitoring (additional cost)"

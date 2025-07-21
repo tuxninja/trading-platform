@@ -61,6 +61,7 @@ LOG_LEVEL=INFO
 INITIAL_BALANCE=100000.0
 MAX_POSITION_SIZE=0.05
 ENABLE_SCHEDULER=true
+GOOGLE_CLIENT_ID=${google_client_id}
 EOF
 
 chown ec2-user:ec2-user /opt/trading/.env
