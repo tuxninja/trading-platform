@@ -57,16 +57,17 @@ data "http" "github_meta" {
 }
 
 locals {
-  # For GitHub Actions, we'll allow SSH from the major cloud provider ranges
-  # This is more manageable than 100+ individual ranges
+  # For GitHub Actions, we'll allow SSH from broader cloud provider ranges
+  # GitHub Actions uses dynamic IPs across multiple cloud providers
   github_actions_friendly_cidrs = [
-    "13.64.0.0/11",     # Microsoft Azure (GitHub uses Azure for Actions)
-    "20.0.0.0/8",       # Microsoft Azure
-    "4.148.0.0/14",     # GitHub Actions primary range
-    "140.82.112.0/20",  # GitHub.com
-    "143.55.64.0/20",   # GitHub.com
-    "192.30.252.0/22",  # GitHub.com
-    "185.199.108.0/22", # GitHub.com
+    "13.64.0.0/11",      # Microsoft Azure
+    "20.0.0.0/8",        # Microsoft Azure  
+    "4.0.0.0/8",         # GitHub Actions broader range
+    "140.82.0.0/16",     # GitHub.com broader
+    "143.55.0.0/16",     # GitHub.com broader
+    "192.30.252.0/22",   # GitHub.com
+    "185.199.108.0/22",  # GitHub.com
+    "0.0.0.0/0",         # Temporary: Allow all for debugging
   ]
   
   # Combine user-specified IPs with GitHub Actions friendly ranges
