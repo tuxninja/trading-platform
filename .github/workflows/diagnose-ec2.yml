@@ -1,0 +1,63 @@
+name: Diagnose EC2 Instance Status
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    name: Check EC2 Instance Status
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Check EC2 Instance Status
+      env:
+        HOST: ${{ secrets.EC2_HOST }}
+      run: |
+        echo "🔍 EC2 Instance Diagnostics"
+        echo "=========================="
+        echo "Current EC2_HOST secret: $HOST"
+        echo
+        
+        echo "📋 All EC2 Instances:"
+        aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=trading-platform" \
+          --query 'Reservations[*].Instances[*].[InstanceId,State.Name,PublicIpAddress,PrivateIpAddress,Tags[?Key==`Name`].Value|[0]]' \
+          --output table
+        echo
+        
+        echo "📋 Instance Details:"
+        aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=trading-platform" \
+          --query 'Reservations[*].Instances[*].{InstanceId:InstanceId,State:State.Name,PublicIP:PublicIpAddress,PrivateIP:PrivateIpAddress,LaunchTime:LaunchTime}' \
+          --output table
+        echo
+        
+        echo "📋 Security Groups:"
+        aws ec2 describe-instances \
+          --filters "Name=tag:Project,Values=trading-platform" \
+          --query 'Reservations[*].Instances[*].SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName}' \
+          --output table
+        echo
+        
+        echo "📋 Elastic IPs:"
+        aws ec2 describe-addresses \
+          --query 'Addresses[*].{PublicIP:PublicIp,InstanceId:InstanceId,AssociationId:AssociationId}' \
+          --output table
+        echo
+        
+        echo "🌐 Network Test to Current EC2_HOST:"
+        ping -c 3 $HOST || echo "❌ Ping to $HOST failed"
+        echo
+        
+        echo "🔐 SSH Port Test:"
+        timeout 10 bash -c "</dev/tcp/$HOST/22" && echo "✅ Port 22 is open" || echo "❌ Port 22 is closed or filtered"
