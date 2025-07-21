@@ -67,7 +67,6 @@ locals {
     "143.55.0.0/16",     # GitHub.com broader
     "192.30.252.0/22",   # GitHub.com
     "185.199.108.0/22",  # GitHub.com
-    "0.0.0.0/0",         # Temporary: Allow all for debugging
   ]
   
   # Combine user-specified IPs with GitHub Actions friendly ranges
