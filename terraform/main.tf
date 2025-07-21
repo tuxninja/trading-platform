@@ -254,6 +254,7 @@ locals {
     secret_key         = var.secret_key
     news_api_key       = var.news_api_key
     alpha_vantage_key  = var.alpha_vantage_key
+    google_client_id   = var.google_client_id
   }))
 }
 
