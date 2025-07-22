@@ -153,12 +153,12 @@ resource "aws_security_group" "web" {
     description = "SSH access for admins and GitHub Actions"
   }
 
-  # Backend API (for internal communication)
+  # Backend API (for frontend communication)
   ingress {
-    from_port = 8000
-    to_port   = 8000
-    protocol  = "tcp"
-    self      = true
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # All outbound traffic
