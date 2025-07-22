@@ -22,7 +22,7 @@ ENV REACT_APP_GOOGLE_CLIENT_ID=$REACT_APP_GOOGLE_CLIENT_ID
 
 # Set production environment
 ENV NODE_ENV=production
-ENV REACT_APP_API_URL=http://api.trading-platform.local:8000
+ENV REACT_APP_API_URL=http://divestifi.com:8000
 
 # Build the application
 RUN npm run build
