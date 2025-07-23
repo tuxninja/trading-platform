@@ -129,4 +129,110 @@ class GoogleLoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str
-    user: dict 
+    user: dict
+
+# Position Management Schemas
+
+class StrategyBase(BaseModel):
+    name: str
+    strategy_type: str
+    description: str = ""
+    parameters: dict = {}
+    allocation_percentage: float = 10.0
+    max_positions: int = 5
+    risk_level: str = "MEDIUM"
+
+class StrategyCreate(StrategyBase):
+    pass
+
+class StrategyResponse(StrategyBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class PositionBase(BaseModel):
+    symbol: str
+    entry_price: float
+    quantity: int
+    position_size: float
+
+class PositionResponse(PositionBase):
+    id: int
+    strategy_id: int
+    status: str
+    entry_timestamp: datetime
+    exit_timestamp: Optional[datetime] = None
+    exit_price: Optional[float] = None
+    realized_pnl: Optional[float] = None
+    unrealized_pnl: Optional[float] = None
+    stop_loss_price: Optional[float] = None
+    take_profit_price: Optional[float] = None
+    max_hold_time: Optional[int] = None
+    trailing_stop_percentage: Optional[float] = None
+    sentiment_at_entry: Optional[float] = None
+    
+    class Config:
+        from_attributes = True
+
+class PositionExitEventResponse(BaseModel):
+    id: int
+    position_id: int
+    exit_type: str
+    trigger_price: float
+    quantity_closed: int
+    exit_price: float
+    realized_pnl: float
+    timestamp: datetime
+    reason: str
+    
+    class Config:
+        from_attributes = True
+
+class StrategyPerformanceResponse(BaseModel):
+    id: int
+    strategy_id: int
+    date: datetime
+    total_positions: int
+    open_positions: int
+    closed_positions: int
+    winning_positions: int
+    losing_positions: int
+    total_pnl: float
+    unrealized_pnl: float
+    realized_pnl: float
+    win_rate: float
+    average_win: float
+    average_loss: float
+    profit_factor: float
+    max_drawdown: float
+    sharpe_ratio: Optional[float] = None
+    allocated_capital: float
+    utilized_capital: float
+    available_capital: float
+    
+    class Config:
+        from_attributes = True
+
+class PositionSummaryResponse(BaseModel):
+    total_positions: int
+    open_positions: int
+    closed_positions: int
+    total_invested: float
+    total_unrealized_pnl: float
+    total_realized_pnl: float
+    positions: List[dict]
+
+class ExitConditionRequest(BaseModel):
+    position_id: int
+    exit_type: str
+    reason: str = ""
+    partial_quantity: Optional[int] = None
+
+class StrategyRunRequest(BaseModel):
+    strategy_id: int
+    symbols: Optional[List[str]] = None
+    force_analysis: bool = False 

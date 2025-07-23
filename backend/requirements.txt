@@ -25,6 +25,7 @@ lxml==4.9.3
 
 # Scheduling
 schedule==1.2.0
+apscheduler==3.10.4
 
 # Configuration and environment
 python-dotenv==1.0.0

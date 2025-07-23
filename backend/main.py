@@ -11,18 +11,23 @@ import logging
 from typing import Dict, Any, List, Optional
 
 from database import get_db, engine, Base
-from models import Trade, SentimentData, StockData, TradeRecommendation
+from models import Trade, SentimentData, StockData, TradeRecommendation, Strategy, Position
 from schemas import (
     TradeCreate, TradeResponse, SentimentResponse,
     SentimentAnalysisRequest, BulkSentimentResponse,
     TradeRecommendationResponse, MarketScanResult,
-    GoogleLoginRequest, AuthResponse
+    GoogleLoginRequest, AuthResponse,
+    StrategyCreate, StrategyResponse, StrategyRunRequest,
+    PositionResponse, PositionSummaryResponse, ExitConditionRequest
 )
 from services.trading_service import TradingService
 from services.sentiment_service import SentimentService
 from services.data_service import DataService
 from services.recommendation_service import RecommendationService
 from services.market_scanner import MarketScannerService
+from services.strategy_service import StrategyService
+from services.position_manager import PositionManager
+from services.performance_service import PerformanceService
 from config import config, setup_logging
 from exceptions import TradingAppException
 from auth import auth_service, get_current_user, optional_auth
@@ -73,6 +78,9 @@ sentiment_service = SentimentService()
 data_service = DataService()
 recommendation_service = RecommendationService()
 market_scanner = MarketScannerService()
+strategy_service = StrategyService()
+position_manager = PositionManager()
+performance_service = PerformanceService()
 
 logger.info(f"Python executable: {sys.executable}")
 logger.info(f"yfinance version: {yfinance.__version__}")
@@ -494,6 +502,260 @@ async def discovery_to_recommendations(min_trending_score: float = 0.5, db: Sess
         raise
     except Exception as e:
         logger.error(f"Error in discovery-to-recommendations pipeline: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Position Management Endpoints
+
+@app.get("/api/strategies", response_model=List[StrategyResponse])
+async def get_strategies(active_only: bool = True, db: Session = Depends(get_db)):
+    """Get all trading strategies."""
+    try:
+        strategies = strategy_service.get_strategies(db, active_only)
+        return strategies
+    except Exception as e:
+        logger.error(f"Error getting strategies: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/strategies", response_model=StrategyResponse)
+async def create_strategy(strategy: StrategyCreate, db: Session = Depends(get_db)):
+    """Create a new trading strategy."""
+    try:
+        logger.info(f"Creating strategy: {strategy.name} ({strategy.strategy_type})")
+        result = strategy_service.create_strategy(db, strategy)
+        logger.info(f"Strategy created successfully: {result.name}")
+        return result
+    except TradingAppException as e:
+        logger.error(f"Strategy creation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating strategy: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/strategies/{strategy_id}", response_model=StrategyResponse)
+async def get_strategy(strategy_id: int, db: Session = Depends(get_db)):
+    """Get a specific strategy."""
+    try:
+        strategy = strategy_service.get_strategy(db, strategy_id)
+        if not strategy:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        return strategy
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting strategy {strategy_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.put("/api/strategies/{strategy_id}", response_model=StrategyResponse)
+async def update_strategy(strategy_id: int, update_data: dict, db: Session = Depends(get_db)):
+    """Update a strategy."""
+    try:
+        logger.info(f"Updating strategy: {strategy_id}")
+        result = strategy_service.update_strategy(db, strategy_id, update_data)
+        if not result:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        logger.info(f"Strategy updated successfully: {strategy_id}")
+        return result
+    except HTTPException:
+        raise
+    except TradingAppException as e:
+        logger.error(f"Strategy update error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error updating strategy {strategy_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/strategies/{strategy_id}/run")
+async def run_strategy(strategy_id: int, symbols: Optional[List[str]] = Body(None), 
+                      force_analysis: bool = Body(False), db: Session = Depends(get_db)):
+    """Run a specific trading strategy."""
+    try:
+        logger.info(f"Running strategy: {strategy_id}")
+        request = StrategyRunRequest(
+            strategy_id=strategy_id,
+            symbols=symbols,
+            force_analysis=force_analysis
+        )
+        result = strategy_service.run_strategy(db, request)
+        logger.info(f"Strategy execution completed: {result.get('message', 'No message')}")
+        return result
+    except TradingAppException as e:
+        logger.error(f"Strategy execution error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error running strategy {strategy_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/strategies/run-all")
+async def run_all_strategies(db: Session = Depends(get_db)):
+    """Run all active trading strategies."""
+    try:
+        logger.info("Running all active strategies")
+        result = strategy_service.run_all_active_strategies(db)
+        logger.info(f"All strategies completed: {result.get('successful_strategies', 0)} successful")
+        return result
+    except Exception as e:
+        logger.error(f"Error running all strategies: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/positions", response_model=PositionSummaryResponse)
+async def get_positions(strategy_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get position summary for all strategies or a specific strategy."""
+    try:
+        summary = position_manager.get_position_summary(db, strategy_id)
+        if 'error' in summary:
+            raise HTTPException(status_code=400, detail=summary['error'])
+        return summary
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting positions: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/positions/{position_id}/close")
+async def close_position(position_id: int, request: ExitConditionRequest, db: Session = Depends(get_db)):
+    """Manually close a position."""
+    try:
+        logger.info(f"Closing position: {position_id}")
+        from models import ExitConditionType
+        exit_type = ExitConditionType(request.exit_type)
+        
+        exit_event = position_manager.close_position(
+            db, position_id, exit_type, request.reason, request.partial_quantity
+        )
+        
+        logger.info(f"Position closed successfully: {position_id}")
+        return {
+            "message": f"Position {position_id} closed successfully",
+            "exit_event": {
+                "exit_type": exit_event.exit_type,
+                "exit_price": exit_event.exit_price,
+                "realized_pnl": exit_event.realized_pnl,
+                "quantity_closed": exit_event.quantity_closed
+            }
+        }
+    except TradingAppException as e:
+        logger.error(f"Error closing position {position_id}: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error closing position {position_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/positions/check-exits")
+async def check_position_exits(db: Session = Depends(get_db)):
+    """Check all positions for exit conditions and close if triggered."""
+    try:
+        logger.info("Checking position exit conditions")
+        exit_events = position_manager.check_exit_conditions(db)
+        
+        return {
+            "message": f"Checked exit conditions, processed {len(exit_events)} exits",
+            "exit_events": exit_events,
+            "total_exits": len(exit_events)
+        }
+    except Exception as e:
+        logger.error(f"Error checking position exits: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/positions/update-pnl")
+async def update_unrealized_pnl(db: Session = Depends(get_db)):
+    """Update unrealized P&L for all open positions."""
+    try:
+        logger.info("Updating unrealized P&L for all positions")
+        position_manager.update_unrealized_pnl(db)
+        
+        return {"message": "Unrealized P&L updated for all open positions"}
+    except Exception as e:
+        logger.error(f"Error updating unrealized P&L: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Performance Analysis Endpoints
+
+@app.get("/api/performance/strategy/{strategy_id}")
+async def get_strategy_performance(strategy_id: int, days: int = 30, db: Session = Depends(get_db)):
+    """Get performance metrics for a specific strategy."""
+    try:
+        logger.info(f"Getting performance metrics for strategy {strategy_id}")
+        metrics = performance_service.calculate_strategy_metrics(db, strategy_id, days)
+        
+        if 'error' in metrics:
+            raise HTTPException(status_code=404, detail=metrics['error'])
+        
+        return metrics
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting strategy performance: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/performance/compare")
+async def compare_strategies(strategy_ids: List[int] = Body(...), days: int = Body(30), 
+                           db: Session = Depends(get_db)):
+    """Compare performance across multiple strategies."""
+    try:
+        logger.info(f"Comparing strategies: {strategy_ids}")
+        comparison = performance_service.compare_strategies(db, strategy_ids, days)
+        
+        if 'error' in comparison:
+            raise HTTPException(status_code=400, detail=comparison['error'])
+        
+        return comparison
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error comparing strategies: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/performance/portfolio")
+async def get_portfolio_performance(days: int = 30, db: Session = Depends(get_db)):
+    """Get overall portfolio performance."""
+    try:
+        logger.info("Getting portfolio performance")
+        portfolio_perf = performance_service.get_portfolio_performance(db, days)
+        
+        if 'error' in portfolio_perf:
+            raise HTTPException(status_code=400, detail=portfolio_perf['error'])
+        
+        return portfolio_perf
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting portfolio performance: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/performance/history")
+async def get_performance_history(strategy_id: Optional[int] = None, days: int = 30, 
+                                db: Session = Depends(get_db)):
+    """Get historical performance data for charting."""
+    try:
+        logger.info(f"Getting performance history for strategy {strategy_id or 'portfolio'}")
+        history = performance_service.get_performance_history(db, strategy_id, days)
+        
+        if 'error' in history:
+            raise HTTPException(status_code=400, detail=history['error'])
+        
+        return history
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting performance history: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/performance/report")
+async def generate_performance_report(strategy_id: Optional[int] = None, days: int = 30, 
+                                    db: Session = Depends(get_db)):
+    """Generate comprehensive performance report."""
+    try:
+        logger.info(f"Generating performance report for {'strategy ' + str(strategy_id) if strategy_id else 'portfolio'}")
+        report = performance_service.generate_performance_report(db, strategy_id, days)
+        
+        if 'error' in report:
+            raise HTTPException(status_code=400, detail=report['error'])
+        
+        return report
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating performance report: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.on_event("startup")
