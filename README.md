@@ -21,6 +21,24 @@ A comprehensive SaaS paper trading platform that uses sentiment analysis to gene
 - [Testing](#testing)
 - [Contributing](#contributing)
 
+## 📚 Documentation
+
+### Setup Guides
+- **[Development Setup](docs/DEVELOPMENT_SETUP.md)** - Complete guide for local development
+- **[Google OAuth Setup](docs/GOOGLE_OAUTH_SETUP.md)** - Configure Google authentication
+- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment instructions
+
+### Operations
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md)** - Pre/post deployment verification
+- **[SaaS Operations](docs/SAAS_OPERATIONS.md)** - Advanced operational procedures
+
+### Technical Reference
+- **[API Documentation](backend/docs/api.md)** - Complete API reference
+- **[Database Schema](backend/docs/database.md)** - Database structure and models
+- **[Configuration Guide](backend/docs/configuration.md)** - Environment variables and settings
+- **[Claude AI Reference](CLAUDE.md)** - Context and guidelines for AI assistance
+
 ## 🎯 Overview
 
 The Trading Sentiment Analysis Platform is a full-stack application that combines real-time market data, news sentiment analysis, and automated trading strategies to help users make informed investment decisions through paper trading.
@@ -91,11 +109,17 @@ The Trading Sentiment Analysis Platform is a full-stack application that combine
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Node.js 16+
+- Python 3.9+
+- Node.js 18+
+- Docker (optional)
 - Git
 
-### 1-Minute Setup
+### Option 1: Complete Setup (Recommended)
+For first-time setup with Google OAuth and all features:
+
+👉 **Follow the [Development Setup Guide](docs/DEVELOPMENT_SETUP.md)** for step-by-step instructions.
+
+### Option 2: Basic Demo (Quick Test)
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/trading-platform.git
@@ -103,6 +127,8 @@ cd trading-platform
 
 # Start backend
 cd backend
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 python main.py
 
@@ -113,6 +139,13 @@ npm start
 
 # Visit http://localhost:3000
 ```
+
+**Note**: For Google OAuth login to work, you'll need to configure Google Cloud credentials. See [Google OAuth Setup Guide](docs/GOOGLE_OAUTH_SETUP.md).
+
+### Need Help?
+- 🐛 **Issues?** Check the [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- 🚀 **Deploying?** See the [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- 💬 **Questions?** Review the [Claude AI Reference](CLAUDE.md) for context
 
 ## 📦 Installation
 
