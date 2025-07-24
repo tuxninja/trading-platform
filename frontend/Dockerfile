@@ -16,13 +16,14 @@ RUN npm ci --only=production --silent
 # Copy source code
 COPY . .
 
-# Accept build argument for Google Client ID
+# Accept build arguments
 ARG REACT_APP_GOOGLE_CLIENT_ID
+ARG REACT_APP_API_URL=https://divestifi.com
 ENV REACT_APP_GOOGLE_CLIENT_ID=$REACT_APP_GOOGLE_CLIENT_ID
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
 
 # Set production environment
 ENV NODE_ENV=production
-ENV REACT_APP_API_URL=http://divestifi.com:8000
 
 # Build the application
 RUN npm run build
