@@ -37,7 +37,12 @@ from admin_api import admin_router
 logger = setup_logging()
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created successfully")
+except Exception as e:
+    logger.error(f"Error creating database tables: {str(e)}")
+    # Continue anyway - tables might already exist
 
 app = FastAPI(
     title="Trading Sentiment Analysis", 
@@ -103,13 +108,38 @@ async def health_check():
 @app.get("/api/debug")
 async def debug_info():
     """Debug endpoint to verify API connectivity"""
+    try:
+        # Test database connection
+        db = next(get_db())
+        db_status = "connected"
+        try:
+            # Try a simple query
+            trade_count = db.query(Trade).count()
+            db_query_status = f"ok - {trade_count} trades"
+        except Exception as e:
+            db_query_status = f"query failed: {str(e)}"
+        finally:
+            db.close()
+    except Exception as e:
+        db_status = f"failed: {str(e)}"
+        db_query_status = "not tested"
+    
     return {
         "status": "API is working",
         "timestamp": datetime.now().isoformat(),
         "backend_container": "trading-backend",
         "google_client_id_configured": bool(auth_service.google_client_id),
         "cors_origins": config.CORS_ORIGINS,
-        "environment": os.getenv("ENVIRONMENT", "unknown")
+        "environment": os.getenv("ENVIRONMENT", "unknown"),
+        "database_status": db_status,
+        "database_query_status": db_query_status,
+        "services_initialized": {
+            "trading_service": trading_service is not None,
+            "sentiment_service": sentiment_service is not None,
+            "data_service": data_service is not None,
+            "strategy_service": strategy_service is not None,
+            "position_manager": position_manager is not None
+        }
     }
 
 @app.get("/api/debug/network")
@@ -167,7 +197,33 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
 @app.get("/api/trades")
 async def get_trades(db: Session = Depends(get_db)):
     """Get all paper trades"""
-    return trading_service.get_all_trades(db)
+    try:
+        return trading_service.get_all_trades(db)
+    except Exception as e:
+        logger.error(f"Error getting trades: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/api/debug/trades")
+async def debug_trades(db: Session = Depends(get_db)):
+    """Debug trades endpoint without auth"""
+    try:
+        trades = db.query(Trade).limit(5).all()
+        return {
+            "total_trades": db.query(Trade).count(),
+            "sample_trades": [
+                {
+                    "id": t.id,
+                    "symbol": t.symbol,
+                    "trade_type": t.trade_type,
+                    "quantity": t.quantity,
+                    "price": t.price,
+                    "timestamp": t.timestamp.isoformat() if t.timestamp else None
+                } for t in trades
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error in debug trades: {str(e)}")
+        return {"error": str(e), "type": type(e).__name__}
 
 @app.post("/api/trades")
 async def create_trade(trade: TradeCreate, db: Session = Depends(get_db)):
