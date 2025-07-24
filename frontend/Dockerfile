@@ -18,9 +18,10 @@ COPY . .
 
 # Accept build arguments
 ARG REACT_APP_GOOGLE_CLIENT_ID
-ARG REACT_APP_API_URL=https://divestifi.com
+ARG REACT_APP_API_URL
 ENV REACT_APP_GOOGLE_CLIENT_ID=$REACT_APP_GOOGLE_CLIENT_ID
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
+# Leave REACT_APP_API_URL empty for production to use relative URLs via nginx proxy
+ENV REACT_APP_API_URL=${REACT_APP_API_URL:-}
 
 # Set production environment
 ENV NODE_ENV=production

@@ -11,6 +11,7 @@ import Sentiment from './pages/Sentiment';
 import Performance from './pages/Performance';
 import Stocks from './pages/Stocks';
 import Login from './pages/Login';
+import ApiDebugger from './components/ApiDebugger';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,6 +74,7 @@ function App() {
                       <Route path="/sentiment" element={<Sentiment />} />
                       <Route path="/performance" element={<Performance />} />
                       <Route path="/stocks" element={<Stocks />} />
+                      <Route path="/debug" element={<ApiDebugger />} />
                     </Routes>
                   </main>
                 </ProtectedRoute>

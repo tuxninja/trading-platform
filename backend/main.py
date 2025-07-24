@@ -100,6 +100,38 @@ async def health_check():
         "cors_origins": config.CORS_ORIGINS
     }
 
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint to verify API connectivity"""
+    return {
+        "status": "API is working",
+        "timestamp": datetime.now().isoformat(),
+        "backend_container": "trading-backend",
+        "google_client_id_configured": bool(auth_service.google_client_id),
+        "cors_origins": config.CORS_ORIGINS,
+        "environment": os.getenv("ENVIRONMENT", "unknown")
+    }
+
+@app.get("/api/debug/network")
+async def network_debug():
+    """Network debugging endpoint with detailed info"""
+    return {
+        "status": "ok",
+        "message": "Backend is reachable",
+        "timestamp": datetime.now().isoformat(),
+        "cors_origins": config.CORS_ORIGINS,
+        "environment": os.getenv("ENVIRONMENT", "unknown"),
+        "available_endpoints": [
+            "/api/health",
+            "/api/debug/network", 
+            "/api/trades",
+            "/api/sentiment",
+            "/api/auth/google",
+            "/api/auth/me"
+        ],
+        "database_status": "connected"
+    }
+
 # Authentication endpoints
 @app.post("/api/auth/google", response_model=AuthResponse)
 async def google_login(login_request: GoogleLoginRequest):
