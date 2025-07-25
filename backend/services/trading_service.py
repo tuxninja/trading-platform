@@ -215,9 +215,47 @@ class TradingService:
             raise InvalidTradeError(f"Failed to create trade: {str(e)}")
     
     def get_all_trades(self, db: Session) -> List[TradeResponse]:
-        """Get all trades"""
-        trades = db.query(Trade).order_by(desc(Trade.timestamp)).all()
-        return [TradeResponse.from_orm(trade) for trade in trades]
+        """Get all trades with backward compatibility for missing columns"""
+        try:
+            trades = db.query(Trade).order_by(desc(Trade.timestamp)).all()
+            return [TradeResponse.from_orm(trade) for trade in trades]
+        except Exception as e:
+            self.logger.warning(f"Error querying trades with new schema, falling back: {str(e)}")
+            try:
+                # Query basic columns only for backward compatibility
+                from sqlalchemy import text
+                result = db.execute(text("""
+                    SELECT id, symbol, trade_type, quantity, price, total_value, 
+                           timestamp, status, strategy, sentiment_score, 
+                           profit_loss, close_timestamp, close_price
+                    FROM trades 
+                    ORDER BY timestamp DESC
+                """))
+                
+                trades_data = []
+                for row in result:
+                    trade_dict = {
+                        'id': row[0],
+                        'symbol': row[1],
+                        'trade_type': row[2],
+                        'quantity': row[3],
+                        'price': row[4],
+                        'total_value': row[5],
+                        'timestamp': row[6],
+                        'status': row[7],
+                        'strategy': row[8],
+                        'sentiment_score': row[9],
+                        'profit_loss': row[10],
+                        'close_timestamp': row[11],
+                        'close_price': row[12]
+                    }
+                    trades_data.append(trade_dict)
+                
+                return trades_data
+            except Exception as e2:
+                self.logger.error(f"Fallback query also failed: {str(e2)}")
+                # Return empty list instead of crashing
+                return []
     
     def get_trade(self, db: Session, trade_id: int) -> Optional[TradeResponse]:
         """Get a specific trade"""
