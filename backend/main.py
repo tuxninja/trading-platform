@@ -225,6 +225,139 @@ async def debug_trades(db: Session = Depends(get_db)):
         logger.error(f"Error in debug trades: {str(e)}")
         return {"error": str(e), "type": type(e).__name__}
 
+@app.post("/api/debug/migrate")
+async def run_database_migration():
+    """Run database migration to add missing columns and tables"""
+    try:
+        import sqlite3
+        import os
+        
+        # Database path
+        db_path = os.getenv("DATABASE_URL", "sqlite:///./trading_app.db").replace("sqlite:///", "")
+        db_path = db_path.replace("sqlite:///data/", "/app/data/")  # Adjust for container path
+        
+        logger.info(f"Running migration on database: {db_path}")
+        
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        migrations_applied = []
+        
+        # Add position_id to trades table if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN position_id INTEGER NULL;")
+            migrations_applied.append("Added position_id to trades table")
+            logger.info("✅ Added position_id column to trades table")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e).lower():
+                logger.info("ℹ️ position_id column already exists in trades table")
+            else:
+                logger.error(f"Error adding position_id to trades: {e}")
+        
+        # Create new tables
+        new_tables = [
+            ("strategies", """
+                CREATE TABLE IF NOT EXISTS strategies (
+                    id INTEGER PRIMARY KEY,
+                    name VARCHAR NOT NULL,
+                    strategy_type VARCHAR NOT NULL,
+                    description TEXT,
+                    parameters JSON,
+                    is_active BOOLEAN DEFAULT 1,
+                    allocation_percentage FLOAT DEFAULT 10.0,
+                    max_positions INTEGER DEFAULT 5,
+                    risk_level VARCHAR DEFAULT 'MEDIUM',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """),
+            ("positions", """
+                CREATE TABLE IF NOT EXISTS positions (
+                    id INTEGER PRIMARY KEY,
+                    strategy_id INTEGER,
+                    symbol VARCHAR NOT NULL,
+                    entry_price FLOAT NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    position_size FLOAT NOT NULL,
+                    status VARCHAR DEFAULT 'OPEN',
+                    entry_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    exit_timestamp TIMESTAMP NULL,
+                    exit_price FLOAT NULL,
+                    realized_pnl FLOAT NULL,
+                    unrealized_pnl FLOAT NULL,
+                    stop_loss_price FLOAT NULL,
+                    take_profit_price FLOAT NULL,
+                    max_hold_time INTEGER NULL,
+                    trailing_stop_percentage FLOAT NULL,
+                    entry_signal JSON NULL,
+                    sentiment_at_entry FLOAT NULL,
+                    market_conditions JSON NULL
+                );
+            """),
+            ("position_exit_events", """
+                CREATE TABLE IF NOT EXISTS position_exit_events (
+                    id INTEGER PRIMARY KEY,  
+                    position_id INTEGER,
+                    exit_type VARCHAR NOT NULL,
+                    trigger_price FLOAT NOT NULL,
+                    quantity_closed INTEGER NOT NULL,
+                    exit_price FLOAT NOT NULL,
+                    realized_pnl FLOAT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    reason TEXT
+                );
+            """),
+            ("strategy_performance", """
+                CREATE TABLE IF NOT EXISTS strategy_performance (
+                    id INTEGER PRIMARY KEY,
+                    strategy_id INTEGER,
+                    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    total_positions INTEGER DEFAULT 0,
+                    open_positions INTEGER DEFAULT 0,
+                    closed_positions INTEGER DEFAULT 0,
+                    winning_positions INTEGER DEFAULT 0,
+                    losing_positions INTEGER DEFAULT 0,
+                    total_pnl FLOAT DEFAULT 0.0,
+                    unrealized_pnl FLOAT DEFAULT 0.0,
+                    realized_pnl FLOAT DEFAULT 0.0,
+                    win_rate FLOAT DEFAULT 0.0,
+                    average_win FLOAT DEFAULT 0.0,
+                    average_loss FLOAT DEFAULT 0.0,
+                    profit_factor FLOAT DEFAULT 0.0,
+                    max_drawdown FLOAT DEFAULT 0.0,
+                    sharpe_ratio FLOAT NULL,
+                    allocated_capital FLOAT DEFAULT 0.0,
+                    utilized_capital FLOAT DEFAULT 0.0,
+                    available_capital FLOAT DEFAULT 0.0
+                );
+            """)
+        ]
+        
+        for table_name, create_sql in new_tables:
+            try:
+                cursor.execute(create_sql)
+                migrations_applied.append(f"Created {table_name} table")
+                logger.info(f"✅ Created {table_name} table")
+            except Exception as e:
+                logger.error(f"Error creating {table_name} table: {e}")
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "migrations_applied": migrations_applied,
+            "message": f"Applied {len(migrations_applied)} database migrations"
+        }
+        
+    except Exception as e:
+        logger.error(f"Migration failed: {str(e)}")
+        return {
+            "status": "error", 
+            "error": str(e),
+            "message": "Database migration failed"
+        }
+
 @app.post("/api/trades")
 async def create_trade(trade: TradeCreate, db: Session = Depends(get_db)):
     """Create a new paper trade"""

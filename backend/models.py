@@ -41,7 +41,8 @@ class Trade(Base):
     profit_loss = Column(Float, nullable=True)
     close_timestamp = Column(DateTime(timezone=True), nullable=True)
     close_price = Column(Float, nullable=True)
-    position_id = Column(Integer, ForeignKey("positions.id"), nullable=True)
+    # Position ID - nullable for backward compatibility with existing trades
+    position_id = Column(Integer, nullable=True)  # Removed ForeignKey temporarily
 
 class SentimentData(Base):
     __tablename__ = "sentiment_data"
