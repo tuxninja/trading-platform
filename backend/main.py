@@ -979,17 +979,86 @@ async def generate_performance_report(strategy_id: Optional[int] = None, days: i
         logger.error(f"Error generating performance report: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.post("/api/debug/close-old-trades")
+async def debug_close_old_trades(db: Session = Depends(get_db)):
+    """Close old trades that have been open for more than 24 hours for testing."""
+    try:
+        from datetime import datetime, timedelta
+        from services.data_service import DataService
+        
+        # Find trades older than 24 hours that are still open
+        cutoff_time = datetime.now() - timedelta(hours=24)
+        old_trades = db.query(Trade).filter(
+            Trade.status == "OPEN",
+            Trade.timestamp < cutoff_time
+        ).limit(10).all()  # Limit to 10 to avoid overwhelming
+        
+        if not old_trades:
+            return {
+                "status": "success",
+                "message": "No old trades found to close",
+                "closed_trades": 0
+            }
+        
+        data_service = DataService()
+        closed_count = 0
+        
+        for trade in old_trades:
+            try:
+                # Get current market price
+                market_data = data_service.get_market_data(trade.symbol, days=1)
+                current_price = market_data.get('current_price', trade.price)
+                
+                # Close the trade
+                closed_trade = trading_service.close_trade(db, trade.id, current_price)
+                closed_count += 1
+                
+                logger.info(f"Debug closed trade {trade.id}: {trade.symbol} P&L: ${closed_trade.profit_loss:.2f}")
+                
+            except Exception as e:
+                logger.error(f"Error closing trade {trade.id}: {str(e)}")
+                continue
+        
+        return {
+            "status": "success", 
+            "message": f"Closed {closed_count} old trades",
+            "closed_trades": closed_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Error closing old trades: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Error: {str(e)}"
+        }
+
 @app.on_event("startup")
 async def startup_event():
     """Application startup event."""
     logger.info("Trading Sentiment Analysis API starting up...")
     logger.info(f"Initial balance: ${config.INITIAL_BALANCE:,.2f}")
     logger.info(f"Max position size: {config.MAX_POSITION_SIZE:.1%}")
+    
+    # Start the scheduler service for automated trade management
+    try:
+        from services.scheduler_service import scheduler_service
+        await scheduler_service.start()
+        logger.info("Scheduler service started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start scheduler service: {str(e)}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Application shutdown event."""
     logger.info("Trading Sentiment Analysis API shutting down...")
+    
+    # Stop the scheduler service
+    try:
+        from services.scheduler_service import scheduler_service
+        await scheduler_service.stop()
+        logger.info("Scheduler service stopped successfully")
+    except Exception as e:
+        logger.error(f"Failed to stop scheduler service: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
