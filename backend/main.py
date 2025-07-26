@@ -225,6 +225,97 @@ async def debug_trades(db: Session = Depends(get_db)):
         logger.error(f"Error in debug trades: {str(e)}")
         return {"error": str(e), "type": type(e).__name__}
 
+@app.get("/api/debug/portfolio")
+async def debug_portfolio(db: Session = Depends(get_db)):
+    """Debug portfolio calculations to identify production vs development discrepancies"""
+    try:
+        # Get basic trade counts and statistics
+        all_trades = db.query(Trade).all()
+        open_trades = [t for t in all_trades if t.status == "OPEN"]
+        closed_trades = [t for t in all_trades if t.status == "CLOSED"]
+        
+        # Get trading service instance and recalculate balance
+        trading_service.recalculate_current_balance(db)
+        
+        # Get performance metrics from both endpoints
+        old_performance = trading_service.get_performance_metrics(db)
+        portfolio_summary = trading_service.get_portfolio_summary(db)
+        
+        # Calculate manual portfolio values
+        cash_balance = trading_service.current_balance
+        open_positions_value = 0
+        for trade in open_trades:
+            if trade.trade_type == "BUY":
+                # For open BUY positions, use current market price if available
+                try:
+                    market_data = trading_service.data_service.get_market_data(trade.symbol, days=1)
+                    current_price = market_data.get("current_price", trade.price)
+                    position_value = trade.quantity * current_price
+                    open_positions_value += position_value
+                except:
+                    # Fallback to original trade value
+                    open_positions_value += trade.total_value
+        
+        total_portfolio_value = cash_balance + open_positions_value
+        
+        # Debug configuration
+        config_info = {
+            "initial_balance": config.INITIAL_BALANCE,
+            "database_url": os.getenv("DATABASE_URL", "not set"),
+            "environment": os.getenv("ENVIRONMENT", "not set")
+        }
+        
+        return {
+            "config": config_info,
+            "trade_counts": {
+                "total_trades": len(all_trades),
+                "open_trades": len(open_trades),
+                "closed_trades": len(closed_trades)
+            },
+            "balance_calculations": {
+                "trading_service_current_balance": trading_service.current_balance,
+                "trading_service_initial_balance": trading_service.initial_balance,
+                "calculated_cash_balance": cash_balance,
+                "open_positions_value": open_positions_value,
+                "total_portfolio_value": total_portfolio_value
+            },
+            "api_responses": {
+                "old_performance_endpoint": {
+                    "current_balance": old_performance.get("current_balance"),
+                    "total_return": old_performance.get("total_return"),
+                    "total_profit_loss": old_performance.get("total_profit_loss"),
+                    "win_rate": old_performance.get("win_rate")
+                },
+                "portfolio_summary": {
+                    "portfolio_value": portfolio_summary.get("portfolio_value"),
+                    "current_balance": portfolio_summary.get("current_balance"),
+                    "total_return": portfolio_summary.get("total_return")
+                }
+            },
+            "sample_trades": [
+                {
+                    "id": t.id,
+                    "symbol": t.symbol,
+                    "trade_type": t.trade_type,
+                    "quantity": t.quantity,
+                    "price": t.price,
+                    "total_value": t.total_value,
+                    "status": t.status,
+                    "profit_loss": getattr(t, 'profit_loss', None),
+                    "timestamp": t.timestamp.isoformat() if t.timestamp else None
+                } for t in all_trades[:10]
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug portfolio: {str(e)}")
+        import traceback
+        return {
+            "error": str(e), 
+            "type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
+
 @app.post("/api/debug/migrate")
 async def run_database_migration():
     """Run database migration to add missing columns and tables"""
