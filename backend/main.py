@@ -979,6 +979,52 @@ async def generate_performance_report(strategy_id: Optional[int] = None, days: i
         logger.error(f"Error generating performance report: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.get("/api/portfolio/summary")
+async def get_portfolio_summary(db: Session = Depends(get_db)):
+    """Get comprehensive portfolio summary with current values."""
+    try:
+        # Get current balance and positions
+        trading_service.recalculate_current_balance(db)
+        
+        # Get performance metrics
+        performance = trading_service.get_performance_metrics(db)
+        
+        # Get portfolio summary from trading service
+        portfolio_summary = trading_service.get_portfolio_summary(db)
+        
+        # Get recent trades
+        recent_trades = db.query(Trade).order_by(desc(Trade.timestamp)).limit(5).all()
+        
+        # Combine all data
+        summary = {
+            "current_balance": trading_service.current_balance,
+            "initial_balance": trading_service.initial_balance,
+            "portfolio_value": portfolio_summary.get("portfolio_value", trading_service.current_balance),
+            "total_return_pct": ((trading_service.current_balance - trading_service.initial_balance) / trading_service.initial_balance) * 100,
+            "total_return_amount": trading_service.current_balance - trading_service.initial_balance,
+            "performance_metrics": performance,
+            "open_positions": len([t for t in db.query(Trade).filter(Trade.status == "OPEN").all()]),
+            "closed_positions": len([t for t in db.query(Trade).filter(Trade.status == "CLOSED").all()]),
+            "recent_trades": [
+                {
+                    "id": t.id,
+                    "symbol": t.symbol,
+                    "trade_type": t.trade_type,
+                    "quantity": t.quantity,
+                    "price": t.price,
+                    "status": t.status,
+                    "timestamp": t.timestamp.isoformat(),
+                    "profit_loss": t.profit_loss
+                } for t in recent_trades
+            ]
+        }
+        
+        return summary
+        
+    except Exception as e:
+        logger.error(f"Error getting portfolio summary: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Portfolio summary error: {str(e)}")
+
 @app.post("/api/debug/close-old-trades")
 async def debug_close_old_trades(db: Session = Depends(get_db)):
     """Close old trades that have been open for more than 24 hours for testing."""
@@ -1031,6 +1077,103 @@ async def debug_close_old_trades(db: Session = Depends(get_db)):
             "status": "error",
             "message": f"Error: {str(e)}"
         }
+
+# Tax Optimization Endpoints
+@app.get("/api/tax/optimize")
+async def get_tax_optimization(db: Session = Depends(get_db)):
+    """Get tax-optimized trading recommendations."""
+    try:
+        from services.tax_optimization_service import tax_optimization_service
+        
+        recommendations = tax_optimization_service.optimize_trade_timing(db)
+        
+        if 'error' in recommendations:
+            raise HTTPException(status_code=400, detail=recommendations['error'])
+        
+        return recommendations
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting tax optimization: {str(e)}")
+        raise HTTPException(status_code=500, detail="Tax optimization error")
+
+@app.get("/api/tax/loss-harvesting")
+async def get_tax_loss_harvesting(db: Session = Depends(get_db)):
+    """Get tax loss harvesting opportunities."""
+    try:
+        from services.tax_optimization_service import tax_optimization_service
+        
+        opportunities = tax_optimization_service.suggest_tax_loss_harvesting(db)
+        
+        if 'error' in opportunities:
+            raise HTTPException(status_code=400, detail=opportunities['error'])
+        
+        return opportunities
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting tax loss harvesting: {str(e)}")
+        raise HTTPException(status_code=500, detail="Tax loss harvesting error")
+
+@app.get("/api/tax/report")
+async def get_tax_report(year: Optional[int] = None, db: Session = Depends(get_db)):
+    """Generate annual tax report."""
+    try:
+        from services.tax_optimization_service import tax_optimization_service
+        
+        report = tax_optimization_service.calculate_annual_tax_report(db, year)
+        
+        if 'error' in report:
+            raise HTTPException(status_code=400, detail=report['error'])
+        
+        return report
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating tax report: {str(e)}")
+        raise HTTPException(status_code=500, detail="Tax report error")
+
+@app.post("/api/tax/analyze-trade/{trade_id}")
+async def analyze_trade_tax_impact(trade_id: int, db: Session = Depends(get_db)):
+    """Analyze tax impact of closing a specific trade."""
+    try:
+        from services.tax_optimization_service import tax_optimization_service
+        from services.data_service import DataService
+        
+        trade = db.query(Trade).filter(Trade.id == trade_id).first()
+        if not trade:
+            raise HTTPException(status_code=404, detail="Trade not found")
+        
+        if trade.status != "OPEN":
+            raise HTTPException(status_code=400, detail="Trade is not open")
+        
+        # Get current market price
+        data_service = DataService()
+        market_data = data_service.get_market_data(trade.symbol, days=1)
+        current_price = market_data.get('current_price', trade.price)
+        
+        # Calculate tax impact
+        tax_analysis = tax_optimization_service.calculate_tax_impact(db, trade, current_price)
+        
+        if 'error' in tax_analysis:
+            raise HTTPException(status_code=400, detail=tax_analysis['error'])
+        
+        return {
+            "trade_id": trade_id,
+            "symbol": trade.symbol,
+            "entry_price": trade.price,
+            "current_price": current_price,
+            "tax_analysis": tax_analysis
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing trade tax impact: {str(e)}")
+        raise HTTPException(status_code=500, detail="Trade tax analysis error")
 
 @app.on_event("startup")
 async def startup_event():
