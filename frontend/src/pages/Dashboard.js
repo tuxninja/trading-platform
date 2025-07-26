@@ -88,12 +88,21 @@ const Dashboard = () => {
   const recentTrades = isTradesArray ? trades.slice(0, 5) : [];
   const topSentiment = isSentimentArray ? sentiment.slice(0, 5) : [];
 
-  // Use real portfolio history data, fallback to current balance if no history
+  // Use real portfolio history data, but ensure the last point matches current portfolio value
   const chartData = Array.isArray(portfolioHistory) && portfolioHistory.length > 0 
-    ? portfolioHistory.map(point => ({
-        date: point.date,
-        value: point.value
-      }))
+    ? portfolioHistory.map((point, index) => {
+        // For the last data point, use the current portfolio value to ensure consistency
+        if (index === portfolioHistory.length - 1) {
+          return {
+            date: point.date,
+            value: performance?.portfolio_value || point.value
+          };
+        }
+        return {
+          date: point.date,
+          value: point.value
+        };
+      })
     : [
         { date: new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0], value: performance?.portfolio_value || 100000 },
         { date: new Date().toISOString().split('T')[0], value: performance?.portfolio_value || 100000 }
