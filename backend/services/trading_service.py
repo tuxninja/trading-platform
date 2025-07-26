@@ -597,18 +597,33 @@ class TradingService:
         try:
             portfolio_value = self.current_balance
             
-            # Calculate value of open positions
-            for symbol, quantity in self.positions.items():
-                if quantity > 0:
-                    market_data = self.data_service.get_market_data(symbol, days=1)
-                    if "error" not in market_data:
-                        current_price = market_data["current_price"]
-                        position_value = quantity * current_price
-                        portfolio_value += position_value
+            # Calculate value of open positions directly from database
+            open_trades = db.query(Trade).filter(Trade.status == "OPEN").all()
+            open_positions_value = 0
+            
+            for trade in open_trades:
+                if trade.trade_type == "BUY":
+                    # For open BUY positions, use current market price
+                    try:
+                        market_data = self.data_service.get_market_data(trade.symbol, days=1)
+                        if "error" not in market_data:
+                            current_price = market_data["current_price"]
+                            position_value = trade.quantity * current_price
+                            open_positions_value += position_value
+                        else:
+                            # Fallback to original trade value if market data fails
+                            open_positions_value += trade.total_value
+                    except Exception as e:
+                        self.logger.warning(f"Error getting market data for {trade.symbol}: {e}")
+                        # Fallback to original trade value
+                        open_positions_value += trade.total_value
+            
+            portfolio_value += open_positions_value
             
             return {
                 "current_balance": self.current_balance,
                 "portfolio_value": portfolio_value,
+                "open_positions_value": open_positions_value,
                 "positions": self.positions,
                 "total_return": ((portfolio_value - self.initial_balance) / self.initial_balance) * 100
             }
