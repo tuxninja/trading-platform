@@ -236,3 +236,104 @@ class StrategyRunRequest(BaseModel):
     strategy_id: int
     symbols: Optional[List[str]] = None
     force_analysis: bool = False 
+
+# NEW SCHEMAS FOR REAL TRADING CONTROL AND TRANSPARENCY
+
+from enum import Enum
+from typing import Dict, Any
+
+class TradingModeEnum(str, Enum):
+    MANUAL = "MANUAL"
+    SEMI_AUTO = "SEMI_AUTO"  # Preview trades, manual approval
+    AUTO = "AUTO"  # Fully automated
+
+class CapitalAllocationSettings(BaseModel):
+    max_total_investment: float  # Maximum total capital to invest
+    max_position_size_percent: float = 5.0  # Max % of portfolio per position
+    max_positions: int = 10  # Maximum number of open positions
+    reserve_cash_percent: float = 10.0  # % of capital to keep as cash reserve
+
+class ExitStrategySettings(BaseModel):
+    stop_loss_percent: Optional[float] = None  # Stop loss as % below purchase price
+    take_profit_percent: Optional[float] = None  # Take profit as % above purchase price
+    max_hold_days: Optional[int] = None  # Maximum days to hold position
+    trailing_stop_percent: Optional[float] = None  # Trailing stop loss %
+
+class TradingControlSettings(BaseModel):
+    trading_mode: TradingModeEnum = TradingModeEnum.SEMI_AUTO
+    capital_allocation: CapitalAllocationSettings
+    exit_strategy: ExitStrategySettings
+    require_confirmation: bool = True  # Require manual confirmation before trades
+    enable_notifications: bool = True  # Send notifications for trade events
+
+class TradeSignalPreview(BaseModel):
+    signal_id: str  # Unique identifier for this signal
+    symbol: str
+    action: str  # BUY, SELL
+    quantity: int
+    estimated_price: float
+    estimated_total: float
+    reasoning: str
+    confidence: float
+    sentiment_score: float
+    risk_assessment: Dict[str, Any]
+    capital_impact: Dict[str, float]  # Shows available capital before/after
+    created_at: datetime
+    expires_at: datetime  # Signals expire after some time
+
+class TradeApprovalRequest(BaseModel):
+    signal_id: str  # Signal ID to approve or reject
+    approved: bool  # Whether to approve the trade
+    override_quantity: Optional[int] = None  # Override suggested quantity
+    override_price_limit: Optional[float] = None  # Set maximum price for BUY or minimum for SELL
+    notes: Optional[str] = None  # Optional notes about the decision
+
+class CapitalAllocationStatus(BaseModel):
+    total_portfolio_value: float
+    cash_available: float
+    cash_allocated_to_trades: float
+    cash_reserve_required: float
+    cash_available_for_new_trades: float
+    max_total_investment_limit: float
+    current_investment_amount: float
+    investment_capacity_remaining: float
+    open_positions_count: int
+    max_positions_limit: int
+    position_capacity_remaining: int
+    largest_position_percent: float
+    sector_allocations: Dict[str, float]
+
+class ExitSignalPreview(BaseModel):
+    signal_id: str
+    position_id: int
+    symbol: str
+    action: str = "SELL"
+    quantity: int
+    estimated_price: float
+    estimated_total: float
+    estimated_pnl: float
+    exit_reason: str
+    urgency: str  # LOW, MEDIUM, HIGH
+    created_at: datetime
+    expires_at: Optional[datetime] = None  # Some exits (stop loss) don't expire
+
+class TradingNotification(BaseModel):
+    id: str
+    type: str  # SIGNAL_GENERATED, TRADE_EXECUTED, EXIT_TRIGGERED, RISK_WARNING
+    title: str
+    message: str
+    symbol: Optional[str] = None
+    priority: str  # LOW, MEDIUM, HIGH, URGENT
+    action_required: bool = False
+    action_url: Optional[str] = None
+    created_at: datetime
+    read: bool = False
+
+class RiskAssessmentResponse(BaseModel):
+    overall_risk_score: float  # 0-10 scale
+    warnings: List[str]
+    recommendations: List[str]
+    portfolio_metrics: Dict[str, float]
+    position_concentration: Dict[str, float]
+    sector_concentration: Dict[str, float]
+    volatility_analysis: Dict[str, Any]

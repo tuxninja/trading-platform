@@ -1303,6 +1303,139 @@ async def get_tax_loss_harvesting(db: Session = Depends(get_db)):
         logger.error(f"Error getting tax loss harvesting: {str(e)}")
         raise HTTPException(status_code=500, detail="Tax loss harvesting error")
 
+# Real Trading Control Endpoints
+@app.get("/api/trading/capital-status")
+async def get_capital_allocation_status(db: Session = Depends(get_db)):
+    """Get detailed capital allocation and availability status."""
+    try:
+        from services.trading_control_service import TradingControlService
+        control_service = TradingControlService()
+        
+        status = control_service.get_capital_allocation_status(db)
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting capital allocation status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Capital allocation status error")
+
+@app.get("/api/trading/settings")
+async def get_trading_settings():
+    """Get current trading control settings."""
+    try:
+        from services.trading_control_service import TradingControlService
+        control_service = TradingControlService()
+        
+        settings = control_service.get_trading_settings()
+        return settings
+        
+    except Exception as e:
+        logger.error(f"Error getting trading settings: {str(e)}")
+        raise HTTPException(status_code=500, detail="Trading settings error")
+
+@app.put("/api/trading/settings")
+async def update_trading_settings(settings: "TradingControlSettings"):
+    """Update trading control settings."""
+    try:
+        from services.trading_control_service import TradingControlService
+        from schemas import TradingControlSettings
+        
+        control_service = TradingControlService()
+        result = control_service.update_trading_settings(settings)
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error updating trading settings: {str(e)}")
+        raise HTTPException(status_code=500, detail="Trading settings update error")
+
+@app.get("/api/trading/signals/pending")
+async def get_pending_signals():
+    """Get all pending trade signals awaiting approval."""
+    try:
+        from services.trading_control_service import TradingControlService
+        control_service = TradingControlService()
+        
+        signals = control_service.get_pending_signals()
+        return signals
+        
+    except Exception as e:
+        logger.error(f"Error getting pending signals: {str(e)}")
+        raise HTTPException(status_code=500, detail="Pending signals error")
+
+@app.post("/api/trading/signals/preview")
+async def preview_trade_signal(signal: "StrategySignal", db: Session = Depends(get_db)):
+    """Preview a trade signal before execution."""
+    try:
+        from services.trading_control_service import TradingControlService
+        from schemas import StrategySignal
+        
+        control_service = TradingControlService()
+        preview = control_service.preview_trade_signal(db, signal)
+        return preview
+        
+    except Exception as e:
+        logger.error(f"Error previewing trade signal: {str(e)}")
+        raise HTTPException(status_code=500, detail="Trade signal preview error")
+
+@app.post("/api/trading/signals/approve")
+async def approve_trade_signal(approval: "TradeApprovalRequest"):
+    """Approve or reject a pending trade signal."""
+    try:
+        from services.trading_control_service import TradingControlService
+        from schemas import TradeApprovalRequest
+        
+        control_service = TradingControlService()
+        result = control_service.approve_trade_signal(approval)
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error approving trade signal: {str(e)}")
+        raise HTTPException(status_code=500, detail="Trade approval error")
+
+@app.get("/api/trading/risk-assessment")
+async def get_risk_assessment(db: Session = Depends(get_db)):
+    """Get comprehensive portfolio risk assessment."""
+    try:
+        from services.trading_control_service import TradingControlService
+        control_service = TradingControlService()
+        
+        assessment = control_service.assess_portfolio_risk(db)
+        return assessment
+        
+    except Exception as e:
+        logger.error(f"Error getting risk assessment: {str(e)}")
+        raise HTTPException(status_code=500, detail="Risk assessment error")
+
+@app.get("/api/trading/notifications")
+async def get_notifications(unread_only: bool = False):
+    """Get trading notifications."""
+    try:
+        from services.trading_control_service import TradingControlService
+        control_service = TradingControlService()
+        
+        notifications = control_service.get_notifications(unread_only)
+        return notifications
+        
+    except Exception as e:
+        logger.error(f"Error getting notifications: {str(e)}")
+        raise HTTPException(status_code=500, detail="Notifications error")
+
+@app.post("/api/trading/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str):
+    """Mark a notification as read."""
+    try:
+        from services.trading_control_service import TradingControlService
+        control_service = TradingControlService()
+        
+        success = control_service.mark_notification_read(notification_id)
+        if success:
+            return {"status": "success", "message": "Notification marked as read"}
+        else:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+    except Exception as e:
+        logger.error(f"Error marking notification read: {str(e)}")
+        raise HTTPException(status_code=500, detail="Notification update error")
+
 @app.get("/api/tax/report")
 async def get_tax_report(year: Optional[int] = None, db: Session = Depends(get_db)):
     """Generate annual tax report."""
