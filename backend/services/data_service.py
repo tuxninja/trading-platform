@@ -195,29 +195,36 @@ class DataService:
             sector = mock_info["sector"]
             industry = mock_info["industry"]
         else:
-            base_price = random.uniform(50, 500)
+            # Use deterministic base price based on symbol hash to avoid randomness
+            symbol_hash = abs(hash(symbol))
+            base_price = 50 + (symbol_hash % 450)  # Price between $50-$500, consistent per symbol
             company_name = f"{symbol} Corporation"
             sector = "Technology"
             industry = "Software"
         
-        # Add some realistic price variation
-        price_variation = random.uniform(-0.05, 0.05)  # ±5% variation
+        # Use consistent price variation based on symbol hash for deterministic results
+        # This prevents random fluctuations when markets are closed
+        symbol_hash = abs(hash(symbol))
+        price_variation = ((symbol_hash % 1000) / 1000.0 - 0.5) * 0.1  # ±5% variation, but consistent
         current_price = base_price * (1 + price_variation)
         price_change = current_price - base_price
         price_change_pct = (price_change / base_price) * 100
         
-        # Generate some mock historical data
+        # Generate some mock historical data (deterministic)
         historical_data = []
         for i in range(5):
             date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-            day_price = base_price * (1 + random.uniform(-0.1, 0.1))
+            # Use deterministic price variation based on symbol and day
+            day_variation = ((abs(hash(symbol + str(i))) % 200) / 1000.0 - 0.1)  # ±10% variation
+            day_price = base_price * (1 + day_variation)
+            volume = 1000000 + (abs(hash(symbol + str(i))) % 9000000)  # Consistent volume
             historical_data.append({
                 "date": date,
                 "open": day_price * 0.99,
                 "high": day_price * 1.02,
                 "low": day_price * 0.98,
                 "close": day_price,
-                "volume": random.randint(1000000, 10000000)
+                "volume": volume
             })
         
         return {
