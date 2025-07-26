@@ -42,7 +42,10 @@ class Trade(Base):
     close_timestamp = Column(DateTime(timezone=True), nullable=True)
     close_price = Column(Float, nullable=True)
     # Position ID - nullable for backward compatibility with existing trades
-    position_id = Column(Integer, nullable=True)  # Removed ForeignKey temporarily
+    position_id = Column(Integer, ForeignKey("positions.id"), nullable=True)
+    
+    # Relationships
+    position = relationship("Position", back_populates="trades")
 
 class SentimentData(Base):
     __tablename__ = "sentiment_data"
@@ -155,7 +158,7 @@ class Position(Base):
     
     # Relationships
     strategy = relationship("Strategy", back_populates="positions")
-    trades = relationship("Trade", backref="position")
+    trades = relationship("Trade", foreign_keys="[Trade.position_id]", back_populates="position")
     exit_events = relationship("PositionExitEvent", back_populates="position")
 
 class PositionExitEvent(Base):

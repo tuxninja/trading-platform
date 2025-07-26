@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Flow Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>Trading Platform Login Flow Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            resultsDiv.appendChild(div);
+        }
+
+        async function testApiEndpoint(url, description) {
+            try {
+                addResult(`Testing ${description}...`, 'info');
+                const response = await fetch(url);
+                const status = response.status;
+                
+                if (status === 200) {
+                    const data = await response.text();
+                    addResult(`✅ ${description} - Status: ${status}`, 'success');
+                    return true;
+                } else {
+                    addResult(`⚠️ ${description} - Status: ${status}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                addResult(`❌ ${description} - Error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function runTests() {
+            addResult('🚀 Starting Trading Platform API Tests', 'info');
+            
+            const tests = [
+                ['http://divestifi.com/', 'Frontend Loading'],
+                ['http://divestifi.com/api/trades', 'Trades API'],
+                ['http://divestifi.com/api/performance', 'Performance API'],
+                ['http://divestifi.com/api/debug', 'Debug API'],
+            ];
+
+            let passed = 0;
+            let total = tests.length;
+
+            for (const [url, description] of tests) {
+                const success = await testApiEndpoint(url, description);
+                if (success) passed++;
+                await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between tests
+            }
+
+            addResult(`\n🎯 Test Results: ${passed}/${total} tests passed`, passed === total ? 'success' : 'error');
+            
+            if (passed === total) {
+                addResult('✅ All critical APIs are working! Login and dashboard should work correctly.', 'success');
+                addResult('🌐 Ready to test: http://divestifi.com', 'success');
+            } else {
+                addResult('⚠️ Some APIs failed. Check the server logs for details.', 'error');
+            }
+        }
+
+        // Run tests when page loads
+        runTests();
+    </script>
+</body>
+</html>
