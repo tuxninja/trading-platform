@@ -1333,14 +1333,16 @@ async def get_trading_settings():
         raise HTTPException(status_code=500, detail="Trading settings error")
 
 @app.put("/api/trading/settings")
-async def update_trading_settings(settings: "TradingControlSettings"):
+async def update_trading_settings(settings: dict):
     """Update trading control settings."""
     try:
         from services.trading_control_service import TradingControlService
         from schemas import TradingControlSettings
         
+        # Convert dict to TradingControlSettings
+        settings_obj = TradingControlSettings(**settings)
         control_service = TradingControlService()
-        result = control_service.update_trading_settings(settings)
+        result = control_service.update_trading_settings(settings_obj)
         return result
         
     except Exception as e:
@@ -1362,14 +1364,16 @@ async def get_pending_signals():
         raise HTTPException(status_code=500, detail="Pending signals error")
 
 @app.post("/api/trading/signals/preview")
-async def preview_trade_signal(signal: "StrategySignal", db: Session = Depends(get_db)):
+async def preview_trade_signal(signal: dict, db: Session = Depends(get_db)):
     """Preview a trade signal before execution."""
     try:
         from services.trading_control_service import TradingControlService
         from schemas import StrategySignal
         
+        # Convert dict to StrategySignal
+        signal_obj = StrategySignal(**signal)
         control_service = TradingControlService()
-        preview = control_service.preview_trade_signal(db, signal)
+        preview = control_service.preview_trade_signal(db, signal_obj)
         return preview
         
     except Exception as e:
@@ -1377,14 +1381,16 @@ async def preview_trade_signal(signal: "StrategySignal", db: Session = Depends(g
         raise HTTPException(status_code=500, detail="Trade signal preview error")
 
 @app.post("/api/trading/signals/approve")
-async def approve_trade_signal(approval: "TradeApprovalRequest"):
+async def approve_trade_signal(approval: dict):
     """Approve or reject a pending trade signal."""
     try:
         from services.trading_control_service import TradingControlService
         from schemas import TradeApprovalRequest
         
+        # Convert dict to TradeApprovalRequest
+        approval_obj = TradeApprovalRequest(**approval)
         control_service = TradingControlService()
-        result = control_service.approve_trade_signal(approval)
+        result = control_service.approve_trade_signal(approval_obj)
         return result
         
     except Exception as e:
