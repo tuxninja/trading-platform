@@ -544,14 +544,16 @@ class TradingService:
             # Get current prices for unique symbols only
             for symbol, position_info in symbol_positions.items():
                 try:
-                    market_data = self.data_service.get_market_data(symbol, days=1)
+                    market_data = self.data_service.get_market_data(symbol, days=1, db=db)
                     if "error" not in market_data:
                         current_price = market_data["current_price"]
                         position_value = position_info["quantity"] * current_price
                         open_positions_value += position_value
+                        self.logger.debug(f"Using {market_data.get('data_source', 'live')} price for {symbol}: ${current_price}")
                     else:
                         # Fallback to original trade values
                         open_positions_value += position_info["fallback_value"]
+                        self.logger.warning(f"Using fallback trade value for {symbol}")
                 except Exception as e:
                     self.logger.warning(f"Error getting market data for {symbol}: {e}")
                     # Fallback to original trade values

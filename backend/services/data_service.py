@@ -41,25 +41,48 @@ class DataService:
             "LYFT": {"name": "Lyft Inc.", "base_price": 15.0, "sector": "Technology", "industry": "Software"}
         }
     
-    def get_market_data(self, symbol: str, days: int = 30) -> Dict:
-        """Get market data for a stock symbol"""
+    def get_market_data(self, symbol: str, days: int = 30, db: Session = None) -> Dict:
+        """Get market data for a stock symbol with proper caching fallback"""
         try:
+            # First, try to get real-time data from Yahoo Finance
             stock = yf.Ticker(symbol)
-            
-            # Try multiple approaches to get data
             hist = None
             
-            # Try different periods
+            # Try different periods to get real market data
             for period in ["5d", "1mo", "3mo"]:
                 try:
                     hist = stock.history(period=period)
                     if not hist.empty:
                         break
-                except:
+                except Exception as e:
+                    self.logger.debug(f"Failed to get {period} data for {symbol}: {str(e)}")
                     continue
             
+            # If real-time data failed, try to get cached data from database
+            if (hist is None or hist.empty) and db is not None:
+                self.logger.info(f"Yahoo Finance failed for {symbol}, checking database cache")
+                cached_data = db.query(StockData).filter(StockData.symbol == symbol).order_by(StockData.timestamp.desc()).first()
+                
+                if cached_data and cached_data.close_price > 0:
+                    self.logger.info(f"Using cached data for {symbol} from {cached_data.timestamp}")
+                    return {
+                        "symbol": symbol,
+                        "current_price": float(cached_data.close_price),
+                        "price_change": 0,  # Could calculate from previous record
+                        "price_change_pct": 0,
+                        "market_cap": cached_data.market_cap,
+                        "pe_ratio": cached_data.pe_ratio,
+                        "dividend_yield": cached_data.dividend_yield,
+                        "historical_data": [],
+                        "company_name": symbol,
+                        "sector": "Unknown",
+                        "industry": "Unknown",
+                        "data_source": "cached"
+                    }
+            
+            # If both real-time and cached data failed, use mock data as last resort
             if hist is None or hist.empty:
-                self.logger.warning(f"No historical data available for {symbol}, using mock data")
+                self.logger.warning(f"No real or cached data available for {symbol}, using mock data")
                 return self._get_mock_data(symbol)
             
             # Get current stock info

@@ -248,7 +248,7 @@ async def debug_portfolio(db: Session = Depends(get_db)):
             if trade.trade_type == "BUY":
                 # For open BUY positions, use current market price if available
                 try:
-                    market_data = trading_service.data_service.get_market_data(trade.symbol, days=1)
+                    market_data = trading_service.data_service.get_market_data(trade.symbol, days=1, db=db)
                     current_price = market_data.get("current_price", trade.price)
                     position_value = trade.quantity * current_price
                     open_positions_value += position_value
@@ -264,6 +264,9 @@ async def debug_portfolio(db: Session = Depends(get_db)):
             "database_url": os.getenv("DATABASE_URL", "not set"),
             "environment": os.getenv("ENVIRONMENT", "not set")
         }
+        
+        # Get unique symbols from trades
+        unique_symbols = list(set(trade.symbol for trade in all_trades))
         
         return {
             "config": config_info,
@@ -292,6 +295,7 @@ async def debug_portfolio(db: Session = Depends(get_db)):
                     "total_return": portfolio_summary.get("total_return")
                 }
             },
+            "unique_symbols": unique_symbols,
             "sample_trades": [
                 {
                     "id": t.id,
@@ -315,6 +319,67 @@ async def debug_portfolio(db: Session = Depends(get_db)):
             "type": type(e).__name__,
             "traceback": traceback.format_exc()
         }
+
+@app.post("/api/cache-market-data")
+async def cache_market_data(db: Session = Depends(get_db)):
+    """Cache current market data for all symbols in portfolio"""
+    try:
+        # Get all unique symbols from trades
+        all_trades = db.query(Trade).all()
+        unique_symbols = list(set(trade.symbol for trade in all_trades))
+        
+        cached_count = 0
+        failed_symbols = []
+        
+        for symbol in unique_symbols:
+            try:
+                # Try to get real market data and save to database
+                market_data = data_service.get_market_data(symbol, days=1)
+                
+                if "error" not in market_data and market_data.get("current_price", 0) > 0:
+                    # Save to database
+                    stock_data = StockData(
+                        symbol=symbol,
+                        open_price=market_data.get("current_price"),  # Using current as open for simplicity
+                        high_price=market_data.get("current_price") * 1.01,
+                        low_price=market_data.get("current_price") * 0.99,
+                        close_price=market_data.get("current_price"),
+                        volume=1000000,  # Default volume
+                        market_cap=market_data.get("market_cap"),
+                        pe_ratio=market_data.get("pe_ratio"),
+                        dividend_yield=market_data.get("dividend_yield"),
+                        timestamp=datetime.now()
+                    )
+                    
+                    # Delete old entries for this symbol
+                    db.query(StockData).filter(StockData.symbol == symbol).delete()
+                    
+                    # Add new entry
+                    db.add(stock_data)
+                    db.commit()
+                    cached_count += 1
+                    
+                    logger.info(f"Cached real market data for {symbol}: ${market_data.get('current_price')}")
+                else:
+                    failed_symbols.append(symbol)
+                    logger.warning(f"Failed to get real data for {symbol}")
+                    
+            except Exception as e:
+                failed_symbols.append(symbol)
+                logger.error(f"Error caching data for {symbol}: {str(e)}")
+                db.rollback()
+        
+        return {
+            "message": f"Market data caching completed",
+            "total_symbols": len(unique_symbols),
+            "cached_successfully": cached_count,
+            "failed_symbols": failed_symbols,
+            "symbols_processed": unique_symbols
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in cache market data: {str(e)}")
+        return {"error": str(e)}
 
 @app.post("/api/debug/migrate")
 async def run_database_migration():
