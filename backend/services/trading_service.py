@@ -601,22 +601,30 @@ class TradingService:
             open_trades = db.query(Trade).filter(Trade.status == "OPEN").all()
             open_positions_value = 0
             
+            # Group trades by symbol to reduce API calls
+            symbol_positions = {}
             for trade in open_trades:
                 if trade.trade_type == "BUY":
-                    # For open BUY positions, use current market price
-                    try:
-                        market_data = self.data_service.get_market_data(trade.symbol, days=1)
-                        if "error" not in market_data:
-                            current_price = market_data["current_price"]
-                            position_value = trade.quantity * current_price
-                            open_positions_value += position_value
-                        else:
-                            # Fallback to original trade value if market data fails
-                            open_positions_value += trade.total_value
-                    except Exception as e:
-                        self.logger.warning(f"Error getting market data for {trade.symbol}: {e}")
-                        # Fallback to original trade value
-                        open_positions_value += trade.total_value
+                    if trade.symbol not in symbol_positions:
+                        symbol_positions[trade.symbol] = {"quantity": 0, "fallback_value": 0}
+                    symbol_positions[trade.symbol]["quantity"] += trade.quantity
+                    symbol_positions[trade.symbol]["fallback_value"] += trade.total_value
+            
+            # Get current prices for unique symbols only
+            for symbol, position_info in symbol_positions.items():
+                try:
+                    market_data = self.data_service.get_market_data(symbol, days=1)
+                    if "error" not in market_data:
+                        current_price = market_data["current_price"]
+                        position_value = position_info["quantity"] * current_price
+                        open_positions_value += position_value
+                    else:
+                        # Fallback to original trade values
+                        open_positions_value += position_info["fallback_value"]
+                except Exception as e:
+                    self.logger.warning(f"Error getting market data for {symbol}: {e}")
+                    # Fallback to original trade values
+                    open_positions_value += position_info["fallback_value"]
             
             portfolio_value += open_positions_value
             
