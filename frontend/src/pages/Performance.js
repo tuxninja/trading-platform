@@ -27,7 +27,7 @@ const Performance = () => {
   // Prepare chart data for portfolio performance
   const portfolioData = [
     { date: 'Start', value: 100000 },
-    { date: 'Current', value: performance?.current_balance || 100000 }
+    { date: 'Current', value: performance?.portfolio_value || 100000 }
   ];
 
   // Prepare pie chart data for trade distribution
@@ -64,9 +64,9 @@ const Performance = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Return</p>
               <p className={`text-2xl font-semibold ${
-                (performance?.total_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                (performance?.total_return_percentage || 0) >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
-                {performance?.total_return?.toFixed(2) || '0'}%
+                {performance?.total_return_percentage?.toFixed(2) || '0'}%
               </p>
             </div>
           </div>
@@ -202,7 +202,7 @@ const Performance = () => {
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Current Balance</span>
               <span className="font-semibold">
-                ${performance?.current_balance?.toLocaleString() || '100,000'}
+                ${performance?.portfolio_value?.toLocaleString() || '100,000'}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -216,9 +216,9 @@ const Performance = () => {
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Total Return</span>
               <span className={`font-semibold ${
-                (performance?.total_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                (performance?.total_return_percentage || 0) >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
-                {performance?.total_return?.toFixed(2) || '0'}%
+                {performance?.total_return_percentage?.toFixed(2) || '0'}%
               </span>
             </div>
             <div className="flex justify-between items-center">

@@ -95,8 +95,8 @@ const Dashboard = () => {
         value: point.value
       }))
     : [
-        { date: new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0], value: performance?.current_balance || 100000 },
-        { date: new Date().toISOString().split('T')[0], value: performance?.current_balance || 100000 }
+        { date: new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0], value: performance?.portfolio_value || 100000 },
+        { date: new Date().toISOString().split('T')[0], value: performance?.portfolio_value || 100000 }
       ];
 
   return (
@@ -118,7 +118,7 @@ const Dashboard = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Portfolio Value</p>
               <p className="text-2xl font-semibold text-gray-900">
-                ${performance?.current_balance?.toLocaleString() || '0'}
+                ${performance?.portfolio_value?.toLocaleString() || '0'}
               </p>
             </div>
           </div>
@@ -132,9 +132,9 @@ const Dashboard = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Return</p>
               <p className={`text-2xl font-semibold ${
-                (performance?.total_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                (performance?.total_return_percentage || 0) >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
-                {performance?.total_return?.toFixed(2) || '0'}%
+                {performance?.total_return_percentage?.toFixed(2) || '0'}%
               </p>
             </div>
           </div>

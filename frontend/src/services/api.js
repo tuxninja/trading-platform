@@ -69,7 +69,7 @@ export const marketAPI = {
 
 // Performance API
 export const performanceAPI = {
-  getMetrics: () => api.get('/api/performance').then(res => res.data),
+  getMetrics: () => api.get('/api/performance/portfolio').then(res => res.data),
   getHistory: (days = 30) => api.get(`/api/portfolio-history?days=${days}`).then(res => res.data),
 };
 
