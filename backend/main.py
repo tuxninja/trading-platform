@@ -931,12 +931,42 @@ async def get_portfolio_performance(days: int = 30, db: Session = Depends(get_db
     """Get overall portfolio performance."""
     try:
         logger.info("Getting portfolio performance")
-        portfolio_perf = performance_service.get_portfolio_performance(db, days)
         
-        if 'error' in portfolio_perf:
-            raise HTTPException(status_code=400, detail=portfolio_perf['error'])
+        # First try the new strategy-based performance service
+        try:
+            portfolio_perf = performance_service.get_portfolio_performance(db, days)
+            if 'error' not in portfolio_perf:
+                return portfolio_perf
+        except Exception as e:
+            logger.warning(f"Strategy-based performance failed, falling back to trade-based: {str(e)}")
         
-        return portfolio_perf
+        # Fallback to trading service performance if strategies don't exist
+        logger.info("Using trade-based performance calculation")
+        performance_metrics = trading_service.get_performance_metrics(db)
+        portfolio_history = trading_service.get_portfolio_history(db, days)
+        
+        # Calculate additional portfolio metrics
+        current_value = performance_metrics.get('current_balance', config.INITIAL_BALANCE)
+        total_return_pct = ((current_value - config.INITIAL_BALANCE) / config.INITIAL_BALANCE) * 100
+        
+        # Calculate portfolio value including unrealized gains
+        portfolio_summary = trading_service.get_portfolio_summary(db)
+        portfolio_value = portfolio_summary.get('portfolio_value', current_value)
+        total_return_portfolio_pct = ((portfolio_value - config.INITIAL_BALANCE) / config.INITIAL_BALANCE) * 100
+        
+        return {
+            'total_return_percentage': round(total_return_portfolio_pct, 2),
+            'portfolio_value': round(portfolio_value, 2),
+            'initial_balance': config.INITIAL_BALANCE,
+            'current_balance': round(current_value, 2),
+            'total_trades': performance_metrics.get('total_trades', 0),
+            'win_rate': round(performance_metrics.get('win_rate', 0), 2),
+            'total_profit_loss': round(performance_metrics.get('total_profit_loss', 0), 2),
+            'sharpe_ratio': round(performance_metrics.get('sharpe_ratio', 0), 3),
+            'max_drawdown_percentage': round(performance_metrics.get('max_drawdown', 0), 2),
+            'period_days': days,
+            'history': portfolio_history[-7:] if portfolio_history else []  # Last 7 data points
+        }
     except HTTPException:
         raise
     except Exception as e:

@@ -77,6 +77,7 @@ class TradingService:
         """Get portfolio value history for charting"""
         try:
             from datetime import datetime, timedelta
+            from collections import defaultdict
             
             # Get all trades ordered by date
             trades = db.query(Trade).order_by(Trade.timestamp).all()
@@ -93,6 +94,28 @@ class TradingService:
                     "value": self.initial_balance
                 }]
             
+            # Create timeline of events (both opens and closes)
+            events = []
+            
+            # Add trade opening events
+            for trade in trades:
+                events.append({
+                    "date": trade.timestamp,
+                    "type": "open",
+                    "trade": trade
+                })
+                
+                # Add trade closing events for closed trades
+                if trade.status == "CLOSED" and trade.close_timestamp:
+                    events.append({
+                        "date": trade.close_timestamp,
+                        "type": "close", 
+                        "trade": trade
+                    })
+            
+            # Sort all events chronologically
+            events.sort(key=lambda x: x["date"])
+            
             # Build timeline of portfolio values
             history = []
             balance = self.initial_balance
@@ -108,28 +131,54 @@ class TradingService:
                 "value": balance
             })
             
-            # Process each trade chronologically 
-            for trade in trades:
-                if trade.trade_type == "BUY":
-                    balance -= trade.total_value
-                elif trade.trade_type == "SELL":
-                    balance += trade.total_value
-                    
-                # If trade is closed, add the profit/loss
-                if trade.status == "CLOSED" and trade.profit_loss:
-                    balance += trade.profit_loss
+            # Process each event chronologically 
+            for event in events:
+                trade = event["trade"]
+                
+                if event["type"] == "open":
+                    # Trade opened - subtract the money invested
+                    if trade.trade_type == "BUY":
+                        balance -= trade.total_value
+                    elif trade.trade_type == "SELL":
+                        balance += trade.total_value
+                        
+                elif event["type"] == "close":
+                    # Trade closed - add back original investment plus profit/loss
+                    if trade.trade_type == "BUY":
+                        # BUY trade closed: get back investment + profit/loss
+                        balance += trade.total_value + (trade.profit_loss or 0)
+                    elif trade.trade_type == "SELL":
+                        # SELL trade closed: subtract investment, add profit/loss  
+                        balance -= trade.total_value
+                        balance += (trade.profit_loss or 0)
                     
                 history.append({
-                    "date": trade.timestamp.strftime("%Y-%m-%d"),
+                    "date": event["date"].strftime("%Y-%m-%d"),
                     "value": round(balance, 2)
                 })
             
             # Add current date point if needed
-            if history[-1]["date"] != datetime.now().strftime("%Y-%m-%d"):
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            if not history or history[-1]["date"] != current_date:
+                # Calculate current portfolio value (cash + unrealized gains)
                 self.recalculate_current_balance(db)
+                current_portfolio_value = self.current_balance
+                
+                # Add value of open positions at current market prices
+                open_trades = [t for t in trades if t.status == "OPEN"]
+                for trade in open_trades:
+                    try:
+                        market_data = self.data_service.get_market_data(trade.symbol, days=1)
+                        current_price = market_data.get('current_price', trade.price)
+                        if trade.trade_type == "BUY":
+                            position_value = trade.quantity * current_price
+                            current_portfolio_value += position_value - trade.total_value  # Add unrealized gain/loss
+                    except:
+                        pass  # Skip if can't get market data
+                
                 history.append({
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "value": round(self.current_balance, 2)
+                    "date": current_date,
+                    "value": round(current_portfolio_value, 2)
                 })
                 
             return history
