@@ -1442,6 +1442,203 @@ async def mark_notification_read(notification_id: str):
         logger.error(f"Error marking notification read: {str(e)}")
         raise HTTPException(status_code=500, detail="Notification update error")
 
+# Adaptive Learning Endpoints
+@app.post("/api/learning/analyze")
+async def run_adaptive_learning_analysis(request: dict = None, db: Session = Depends(get_db)):
+    """Run comprehensive adaptive learning analysis to improve trading strategy"""
+    try:
+        from services.adaptive_learning_service import AdaptiveLearningService
+        from schemas import LearningAnalysisRequest
+        
+        # Convert request to schema if provided
+        analysis_request = LearningAnalysisRequest(**(request or {}))
+        
+        learning_service = AdaptiveLearningService()
+        results = learning_service.analyze_and_learn(db)
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error running adaptive learning analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail="Adaptive learning analysis error")
+
+@app.get("/api/learning/dashboard")
+async def get_learning_dashboard_data(db: Session = Depends(get_db)):
+    """Get adaptive learning dashboard data showing patterns, adjustments, and insights"""
+    try:
+        from services.adaptive_learning_service import AdaptiveLearningService
+        
+        learning_service = AdaptiveLearningService()
+        dashboard_data = learning_service.get_learning_dashboard_data(db)
+        
+        return dashboard_data
+        
+    except Exception as e:
+        logger.error(f"Error getting learning dashboard data: {str(e)}")
+        raise HTTPException(status_code=500, detail="Learning dashboard data error")
+
+@app.get("/api/learning/patterns")
+async def get_trade_patterns(
+    pattern_type: Optional[str] = None,
+    symbol: Optional[str] = None,
+    min_success_rate: float = 0.0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """Get discovered trade patterns with optional filtering"""
+    try:
+        from models import TradePattern
+        from schemas import TradePatternResponse
+        
+        query = db.query(TradePattern)
+        
+        if pattern_type:
+            query = query.filter(TradePattern.pattern_type == pattern_type)
+        if symbol:
+            query = query.filter(TradePattern.symbol == symbol)
+        if min_success_rate > 0:
+            query = query.filter(TradePattern.success_rate >= min_success_rate)
+        
+        patterns = query.order_by(desc(TradePattern.success_rate)).limit(limit).all()
+        
+        return [TradePatternResponse.from_orm(pattern) for pattern in patterns]
+        
+    except Exception as e:
+        logger.error(f"Error getting trade patterns: {str(e)}")
+        raise HTTPException(status_code=500, detail="Trade patterns error")
+
+@app.get("/api/learning/adjustments")
+async def get_strategy_adjustments(
+    parameter_name: Optional[str] = None,
+    days_back: int = 30,
+    db: Session = Depends(get_db)
+):
+    """Get strategy parameter adjustments made by the learning system"""
+    try:
+        from models import StrategyLearning
+        from schemas import StrategyLearningResponse
+        
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+        
+        query = db.query(StrategyLearning).filter(
+            StrategyLearning.adjustment_date >= cutoff_date
+        )
+        
+        if parameter_name:
+            query = query.filter(StrategyLearning.parameter_name == parameter_name)
+        
+        adjustments = query.order_by(desc(StrategyLearning.adjustment_date)).all()
+        
+        return [StrategyLearningResponse.from_orm(adj) for adj in adjustments]
+        
+    except Exception as e:
+        logger.error(f"Error getting strategy adjustments: {str(e)}")
+        raise HTTPException(status_code=500, detail="Strategy adjustments error")
+
+@app.get("/api/learning/insights")
+async def get_learning_insights(
+    insight_type: Optional[str] = None,
+    min_confidence: float = 0.5,
+    active_only: bool = True,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """Get insights discovered by the learning system"""
+    try:
+        from models import LearningInsight
+        from schemas import LearningInsightResponse
+        
+        query = db.query(LearningInsight)
+        
+        if insight_type:
+            query = query.filter(LearningInsight.insight_type == insight_type)
+        if min_confidence > 0:
+            query = query.filter(LearningInsight.confidence_score >= min_confidence)
+        if active_only:
+            query = query.filter(LearningInsight.is_active == True)
+        
+        insights = query.order_by(desc(LearningInsight.confidence_score)).limit(limit).all()
+        
+        return [LearningInsightResponse.from_orm(insight) for insight in insights]
+        
+    except Exception as e:
+        logger.error(f"Error getting learning insights: {str(e)}")
+        raise HTTPException(status_code=500, detail="Learning insights error")
+
+@app.get("/api/learning/performance-evolution")
+async def get_performance_evolution(days_back: int = 90, db: Session = Depends(get_db)):
+    """Get performance evolution over time showing learning improvements"""
+    try:
+        from models import PerformanceBaseline, Trade
+        
+        # Get performance baselines over time
+        baselines = db.query(PerformanceBaseline).filter(
+            PerformanceBaseline.baseline_type == "OVERALL",
+            PerformanceBaseline.created_at >= datetime.now() - timedelta(days=days_back)
+        ).order_by(PerformanceBaseline.created_at).all()
+        
+        # Get rolling performance metrics
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+        trades = db.query(Trade).filter(
+            Trade.status == "CLOSED",
+            Trade.profit_loss.isnot(None),
+            Trade.timestamp >= cutoff_date
+        ).order_by(Trade.timestamp).all()
+        
+        # Calculate rolling 30-day performance
+        rolling_performance = []
+        window_size = 30
+        
+        for i in range(window_size, len(trades)):
+            window_trades = trades[i-window_size:i]
+            if len(window_trades) >= 10:
+                winning_trades = [t for t in window_trades if t.profit_loss > 0]
+                win_rate = len(winning_trades) / len(window_trades)
+                avg_profit = sum(t.profit_loss for t in window_trades) / len(window_trades)
+                
+                rolling_performance.append({
+                    "date": window_trades[-1].timestamp.strftime("%Y-%m-%d"),
+                    "win_rate": win_rate,
+                    "avg_profit": avg_profit,
+                    "total_trades": len(window_trades)
+                })
+        
+        return {
+            "baselines": [
+                {
+                    "date": b.created_at.strftime("%Y-%m-%d"),
+                    "win_rate": b.win_rate,
+                    "avg_profit": b.avg_profit,
+                    "profit_factor": b.profit_factor,
+                    "total_trades": b.total_trades
+                } for b in baselines
+            ],
+            "rolling_performance": rolling_performance[-30:]  # Last 30 data points
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting performance evolution: {str(e)}")
+        raise HTTPException(status_code=500, detail="Performance evolution error")
+
+@app.post("/api/learning/force-update-patterns")
+async def force_update_patterns(db: Session = Depends(get_db)):
+    """Force update of trade patterns (useful for testing or manual refresh)"""
+    try:
+        from services.adaptive_learning_service import AdaptiveLearningService
+        
+        learning_service = AdaptiveLearningService()
+        patterns = learning_service._extract_trade_patterns(db)
+        
+        return {
+            "status": "success",
+            "patterns_processed": len(patterns),
+            "message": "Trade patterns updated successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error force updating patterns: {str(e)}")
+        raise HTTPException(status_code=500, detail="Pattern update error")
+
 @app.get("/api/tax/report")
 async def get_tax_report(year: Optional[int] = None, db: Session = Depends(get_db)):
     """Generate annual tax report."""

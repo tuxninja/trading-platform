@@ -103,6 +103,15 @@ class SchedulerService:
                 max_instances=1
             )
             
+            # Adaptive learning analysis (daily after market close, before cleanup)
+            self.scheduler.add_job(
+                self._adaptive_learning_analysis,
+                CronTrigger(hour="16", minute="30", day_of_week="mon-fri"),
+                id="adaptive_learning",
+                replace_existing=True,
+                max_instances=1
+            )
+            
             self.logger.info("Default scheduled tasks configured")
             
         except Exception as e:
@@ -294,6 +303,34 @@ class SchedulerService:
                 
         except Exception as e:
             self.logger.error(f"Error during weekend analysis: {str(e)}")
+    
+    async def _adaptive_learning_analysis(self):
+        """Run adaptive learning analysis to improve trading strategy."""
+        try:
+            self.logger.info("Running adaptive learning analysis...")
+            
+            # Get database session
+            db = next(get_db())
+            
+            try:
+                from services.adaptive_learning_service import AdaptiveLearningService
+                
+                learning_service = AdaptiveLearningService()
+                results = learning_service.analyze_and_learn(db)
+                
+                self.logger.info(f"Adaptive learning completed: {results['patterns_discovered']} patterns, "
+                               f"{results['parameters_adjusted']} adjustments, {results['insights_generated']} insights")
+                
+                # Log any recommendations
+                if results.get('recommendations'):
+                    for rec in results['recommendations'][:3]:  # Log top 3 recommendations
+                        self.logger.info(f"Learning recommendation: {rec}")
+                
+            finally:
+                db.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error during adaptive learning analysis: {str(e)}")
     
     def _parse_schedule_expression(self, expression: str):
         """Parse a schedule expression into a CronTrigger."""

@@ -7,6 +7,7 @@ import {
   ArrowTrendingUpIcon,
   CubeIcon,
   CogIcon,
+  AcademicCapIcon,
   UserCircleIcon,
   ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
@@ -31,6 +32,7 @@ const Navbar = () => {
     { name: 'Performance', href: '/performance', icon: ArrowTrendingUpIcon },
     { name: 'Stocks', href: '/stocks', icon: CubeIcon },
     { name: 'Trading Control', href: '/trading-control', icon: CogIcon },
+    { name: 'AI Learning', href: '/adaptive-learning', icon: AcademicCapIcon },
   ];
 
   const handleLogout = () => {

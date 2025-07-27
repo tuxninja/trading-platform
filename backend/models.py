@@ -221,3 +221,154 @@ class ScheduledTask(Base):
     last_error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# ADAPTIVE LEARNING MODELS
+
+class TradePattern(Base):
+    """Stores patterns and features extracted from successful/unsuccessful trades"""
+    __tablename__ = "trade_patterns"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    pattern_type = Column(String)  # "SUCCESSFUL_ENTRY", "FAILED_ENTRY", "SUCCESSFUL_EXIT", "FAILED_EXIT"
+    
+    # Market context when pattern occurred
+    symbol = Column(String, index=True)
+    sector = Column(String)
+    market_cap_range = Column(String)  # SMALL, MID, LARGE
+    volatility_level = Column(String)  # LOW, MEDIUM, HIGH
+    
+    # Sentiment features
+    sentiment_score = Column(Float)
+    sentiment_strength = Column(Float)  # abs(sentiment_score)
+    news_count = Column(Integer, default=0)
+    social_count = Column(Integer, default=0)
+    
+    # Technical features
+    price_trend = Column(String)  # UP, DOWN, SIDEWAYS
+    volume_trend = Column(String)  # HIGH, NORMAL, LOW
+    price_change_1d = Column(Float)
+    price_change_5d = Column(Float)
+    price_change_30d = Column(Float)
+    
+    # Trade outcome
+    profit_loss = Column(Float)
+    profit_loss_percent = Column(Float)
+    hold_duration_days = Column(Integer)
+    
+    # Strategy parameters when pattern occurred
+    confidence_threshold = Column(Float)
+    position_size_percent = Column(Float)
+    buy_sentiment_threshold = Column(Float)
+    sell_sentiment_threshold = Column(Float)
+    
+    # Pattern metadata
+    pattern_strength = Column(Float, default=1.0)  # How strong this pattern is
+    occurrence_count = Column(Integer, default=1)  # How many times we've seen this pattern
+    success_rate = Column(Float, default=0.0)  # Success rate of this pattern
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class StrategyLearning(Base):
+    """Tracks strategy parameter adjustments and their performance impact"""
+    __tablename__ = "strategy_learning"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    strategy_id = Column(Integer, ForeignKey("strategies.id"))
+    
+    # Parameter changes
+    parameter_name = Column(String)  # e.g., "confidence_threshold", "position_size"
+    old_value = Column(Float)
+    new_value = Column(Float)
+    adjustment_reason = Column(String)  # WHY the adjustment was made
+    
+    # Performance before/after
+    trades_before_count = Column(Integer, default=0)
+    win_rate_before = Column(Float, default=0.0)
+    avg_profit_before = Column(Float, default=0.0)
+    
+    trades_after_count = Column(Integer, default=0)
+    win_rate_after = Column(Float, default=0.0)
+    avg_profit_after = Column(Float, default=0.0)
+    
+    # Evaluation metrics
+    improvement_score = Column(Float, default=0.0)  # Overall improvement rating
+    confidence_level = Column(Float, default=0.5)  # How confident we are in this adjustment
+    is_successful = Column(Boolean, default=None)  # Was this adjustment beneficial?
+    
+    # Learning metadata
+    evaluation_period_days = Column(Integer, default=30)
+    sample_size_trades = Column(Integer, default=0)
+    statistical_significance = Column(Float, default=0.0)
+    
+    adjustment_date = Column(DateTime(timezone=True), server_default=func.now())
+    evaluation_date = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    strategy = relationship("Strategy")
+
+class LearningInsight(Base):
+    """Stores high-level insights discovered by the learning system"""
+    __tablename__ = "learning_insights"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    insight_type = Column(String)  # "MARKET_CONDITION", "SYMBOL_SPECIFIC", "SECTOR_TREND", "TIMING_PATTERN"
+    
+    # The insight content
+    title = Column(String)
+    description = Column(Text)
+    
+    # Market context
+    symbols_affected = Column(JSON)  # List of symbols this applies to
+    sectors_affected = Column(JSON)  # List of sectors this applies to
+    market_conditions = Column(JSON)  # Market conditions when this applies
+    
+    # Supporting evidence
+    supporting_trades_count = Column(Integer, default=0)
+    confidence_score = Column(Float, default=0.0)  # How confident we are in this insight
+    impact_magnitude = Column(Float, default=0.0)  # How much impact this has on performance
+    
+    # Usage tracking
+    times_applied = Column(Integer, default=0)
+    success_when_applied = Column(Integer, default=0)
+    current_effectiveness = Column(Float, default=0.0)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    is_validated = Column(Boolean, default=False)
+    
+    discovered_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_validated = Column(DateTime(timezone=True), nullable=True)
+    
+class PerformanceBaseline(Base):
+    """Tracks performance baselines for comparison and learning evaluation"""
+    __tablename__ = "performance_baselines"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    baseline_type = Column(String)  # "OVERALL", "SYMBOL_SPECIFIC", "SECTOR_SPECIFIC", "STRATEGY_SPECIFIC"
+    
+    # Baseline context
+    symbol = Column(String, nullable=True)
+    sector = Column(String, nullable=True)
+    strategy_id = Column(Integer, ForeignKey("strategies.id"), nullable=True)
+    market_condition = Column(String, nullable=True)  # BULL, BEAR, SIDEWAYS
+    
+    # Performance metrics
+    win_rate = Column(Float)
+    avg_profit = Column(Float)
+    avg_loss = Column(Float)
+    profit_factor = Column(Float)
+    sharpe_ratio = Column(Float, nullable=True)
+    max_drawdown = Column(Float, nullable=True)
+    
+    # Data points
+    total_trades = Column(Integer)
+    period_start = Column(DateTime(timezone=True))
+    period_end = Column(DateTime(timezone=True))
+    
+    # Metadata
+    is_current = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    strategy = relationship("Strategy")

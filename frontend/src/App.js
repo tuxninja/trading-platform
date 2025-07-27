@@ -11,6 +11,7 @@ import Sentiment from './pages/Sentiment';
 import Performance from './pages/Performance';
 import Stocks from './pages/Stocks';
 import TradingControl from './pages/TradingControl';
+import AdaptiveLearning from './pages/AdaptiveLearning';
 import Login from './pages/Login';
 import ApiDebugger from './components/ApiDebugger';
 
@@ -76,6 +77,7 @@ function App() {
                       <Route path="/performance" element={<Performance />} />
                       <Route path="/stocks" element={<Stocks />} />
                       <Route path="/trading-control" element={<TradingControl />} />
+                      <Route path="/adaptive-learning" element={<AdaptiveLearning />} />
                       <Route path="/debug" element={<ApiDebugger />} />
                     </Routes>
                   </main>

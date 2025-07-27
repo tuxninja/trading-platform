@@ -337,3 +337,70 @@ class RiskAssessmentResponse(BaseModel):
     position_concentration: Dict[str, float]
     sector_concentration: Dict[str, float]
     volatility_analysis: Dict[str, Any]
+
+# ADAPTIVE LEARNING SCHEMAS
+
+class TradePatternResponse(BaseModel):
+    id: int
+    pattern_type: str
+    symbol: str
+    sector: str
+    sentiment_score: float
+    profit_loss: float
+    success_rate: float
+    occurrence_count: int
+    pattern_strength: float
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class StrategyLearningResponse(BaseModel):
+    id: int
+    parameter_name: str
+    old_value: float
+    new_value: float
+    adjustment_reason: str
+    confidence_level: float
+    is_successful: Optional[bool]
+    improvement_score: float
+    adjustment_date: datetime
+    
+    class Config:
+        from_attributes = True
+
+class LearningInsightResponse(BaseModel):
+    id: int
+    insight_type: str
+    title: str
+    description: str
+    confidence_score: float
+    impact_magnitude: float
+    times_applied: int
+    current_effectiveness: float
+    is_active: bool
+    discovered_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class AdaptiveLearningResults(BaseModel):
+    patterns_discovered: int
+    parameters_adjusted: int
+    insights_generated: int
+    baselines_updated: int
+    recommendations: List[str]
+
+class LearningDashboardData(BaseModel):
+    patterns_discovered_30d: int
+    parameter_adjustments_30d: int
+    active_insights: int
+    current_win_rate: float
+    current_profit_factor: float
+    recent_adjustments: List[Dict[str, Any]]
+    top_insights: List[Dict[str, Any]]
+
+class LearningAnalysisRequest(BaseModel):
+    force_full_analysis: bool = False
+    min_trades_required: int = 10
+    confidence_threshold: float = 0.7
