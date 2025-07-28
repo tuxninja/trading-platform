@@ -1471,6 +1471,9 @@ async def get_learning_dashboard_data(db: Session = Depends(get_db)):
         learning_service = AdaptiveLearningService()
         dashboard_data = learning_service.get_learning_dashboard_data(db)
         
+        # Add debug info for data consistency
+        logger.info(f"Learning dashboard response: patterns_30d={dashboard_data.get('patterns_discovered_30d', 0)}, total_patterns={dashboard_data.get('total_patterns_ever', 0)}")
+        
         return dashboard_data
         
     except Exception as e:
@@ -1500,6 +1503,10 @@ async def get_trade_patterns(
             query = query.filter(TradePattern.success_rate >= min_success_rate)
         
         patterns = query.order_by(desc(TradePattern.success_rate)).limit(limit).all()
+        
+        # Debug logging for data consistency
+        total_patterns_in_db = db.query(TradePattern).count()
+        logger.info(f"Patterns endpoint: Found {len(patterns)} patterns (filtered), {total_patterns_in_db} total in DB")
         
         return [TradePatternResponse.from_orm(pattern) for pattern in patterns]
         

@@ -762,10 +762,13 @@ class AdaptiveLearningService:
     def get_learning_dashboard_data(self, db: Session) -> Dict[str, Any]:
         """Get comprehensive learning data for dashboard display"""
         try:
-            # Recent patterns
-            recent_patterns = db.query(TradePattern).filter(
+            # Recent patterns - ensure we're getting accurate count
+            recent_patterns_count = db.query(TradePattern).filter(
                 TradePattern.created_at >= datetime.now() - timedelta(days=30)
             ).count()
+            
+            # Total patterns ever discovered for verification
+            total_patterns_count = db.query(TradePattern).count()
             
             # Parameter adjustments
             recent_adjustments = db.query(StrategyLearning).filter(
@@ -781,12 +784,18 @@ class AdaptiveLearningService:
             # Performance improvement
             current_baseline = self._get_or_create_baseline(db, "OVERALL")
             
+            # Log for debugging data consistency
+            self.logger.info(f"Dashboard data: {recent_patterns_count} recent patterns, {total_patterns_count} total patterns")
+            
             return {
-                "patterns_discovered_30d": recent_patterns,
+                "patterns_discovered_30d": recent_patterns_count,
+                "total_patterns_ever": total_patterns_count,
                 "parameter_adjustments_30d": len(recent_adjustments),
                 "active_insights": len(active_insights),
                 "current_win_rate": current_baseline.win_rate,
                 "current_profit_factor": current_baseline.profit_factor,
+                "learning_system_active": total_patterns_count > 0 or len(recent_adjustments) > 0,
+                "data_source": "database",
                 "recent_adjustments": [
                     {
                         "parameter": adj.parameter_name,
@@ -808,4 +817,15 @@ class AdaptiveLearningService:
             
         except Exception as e:
             self.logger.error(f"Error getting learning dashboard data: {str(e)}")
-            return {}
+            return {
+                "patterns_discovered_30d": 0,
+                "total_patterns_ever": 0,
+                "parameter_adjustments_30d": 0,
+                "active_insights": 0,
+                "current_win_rate": 0.0,
+                "current_profit_factor": 0.0,
+                "learning_system_active": False,
+                "data_source": "error_fallback",
+                "recent_adjustments": [],
+                "top_insights": []
+            }
