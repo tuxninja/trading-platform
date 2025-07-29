@@ -100,9 +100,14 @@ class SentimentService:
             if response.status_code == 429:
                 raise APIRateLimitError("News API rate limit exceeded")
             elif response.status_code == 401:
-                self.logger.warning(f"News API authentication failed for {symbol}, switching to alternative sources")
-                self.use_alternative_news = True  # Switch to alternative for future calls
-                return self._get_alternative_news_sentiment(symbol)
+                self.logger.error(f"News API authentication failed for {symbol} - API key may be invalid or expired")
+                # Don't switch to alternative, return proper error response
+                return {
+                    "sentiment": 0.0, 
+                    "count": 0, 
+                    "articles": [],
+                    "error": "News API authentication failed - please check API key configuration"
+                }
             elif response.status_code != 200:
                 self.logger.warning(f"News API returned status {response.status_code} for {symbol}")
                 return {"sentiment": 0.0, "count": 0, "articles": []}

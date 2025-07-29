@@ -834,9 +834,19 @@ async def analyze_bulk_sentiment(request: SentimentAnalysisRequest, db: Session 
         
         for symbol in request.symbols:
             try:
-                result = sentiment_service.analyze_stock_sentiment(db, symbol.upper().strip())
-                results.append(result)
-                logger.info(f"Sentiment analysis completed for {symbol}: {result.overall_sentiment:.3f}")
+                symbol_clean = symbol.upper().strip()
+                logger.info(f"Starting sentiment analysis for {symbol_clean}")
+                result = sentiment_service.analyze_stock_sentiment(db, symbol_clean)
+                
+                # Check if the result contains an error
+                if hasattr(result, '__dict__') and 'error' in result.__dict__:
+                    error_msg = f"Sentiment analysis failed for {symbol_clean}: {result.error}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+                else:
+                    results.append(result)
+                    logger.info(f"Sentiment analysis completed for {symbol_clean}: overall={result.overall_sentiment:.3f}")
+                    
             except Exception as e:
                 error_msg = f"Failed to analyze {symbol}: {str(e)}"
                 errors.append(error_msg)

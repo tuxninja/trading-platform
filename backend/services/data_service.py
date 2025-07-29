@@ -15,48 +15,62 @@ from exceptions import StockDataError, APIRateLimitError
 
 class DataService:
     def __init__(self):
-        self.tracked_stocks = [
-            "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX",
-            "AMD", "INTC", "CRM", "ORCL", "ADBE", "PYPL", "UBER", "LYFT"
-        ]
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.last_api_call = 0  # For rate limiting
-        # Predefined mock data for common stocks
-        self.mock_data = {
-            "AAPL": {"name": "Apple Inc.", "base_price": 180.0, "sector": "Technology", "industry": "Consumer Electronics"},
-            "GOOGL": {"name": "Alphabet Inc.", "base_price": 140.0, "sector": "Technology", "industry": "Internet Content & Information"},
-            "MSFT": {"name": "Microsoft Corporation", "base_price": 380.0, "sector": "Technology", "industry": "Software"},
-            "AMZN": {"name": "Amazon.com Inc.", "base_price": 150.0, "sector": "Consumer Cyclical", "industry": "Internet Retail"},
-            "TSLA": {"name": "Tesla Inc.", "base_price": 240.0, "sector": "Consumer Cyclical", "industry": "Auto Manufacturers"},
-            "META": {"name": "Meta Platforms Inc.", "base_price": 320.0, "sector": "Technology", "industry": "Internet Content & Information"},
-            "NVDA": {"name": "NVIDIA Corporation", "base_price": 450.0, "sector": "Technology", "industry": "Semiconductors"},
-            "NFLX": {"name": "Netflix Inc.", "base_price": 480.0, "sector": "Communication Services", "industry": "Entertainment"},
-            "AMD": {"name": "Advanced Micro Devices Inc.", "base_price": 120.0, "sector": "Technology", "industry": "Semiconductors"},
-            "INTC": {"name": "Intel Corporation", "base_price": 45.0, "sector": "Technology", "industry": "Semiconductors"},
-            "CRM": {"name": "Salesforce Inc.", "base_price": 250.0, "sector": "Technology", "industry": "Software"},
-            "ORCL": {"name": "Oracle Corporation", "base_price": 120.0, "sector": "Technology", "industry": "Software"},
-            "ADBE": {"name": "Adobe Inc.", "base_price": 520.0, "sector": "Technology", "industry": "Software"},
-            "PYPL": {"name": "PayPal Holdings Inc.", "base_price": 78.0, "sector": "Technology", "industry": "Software"},
-            "UBER": {"name": "Uber Technologies Inc.", "base_price": 70.0, "sector": "Technology", "industry": "Software"},
-            "LYFT": {"name": "Lyft Inc.", "base_price": 15.0, "sector": "Technology", "industry": "Software"}
-        }
     
     def get_market_data(self, symbol: str, days: int = 30, db: Session = None) -> Dict:
         """Get market data for a stock symbol with proper caching fallback"""
         try:
-            # First, try to get real-time data from Yahoo Finance
+            # First, try to get real-time data from Yahoo Finance with enhanced retry
             stock = yf.Ticker(symbol)
             hist = None
             
-            # Try different periods to get real market data
-            for period in ["5d", "1mo", "3mo"]:
+            # Try multiple approaches to get current market data
+            approaches = [
+                ("1d", "1 day history"),
+                ("5d", "5 day history"), 
+                ("1mo", "1 month history"),
+                ("3mo", "3 month history"),
+                ("ytd", "year to date history"),
+                ("1y", "1 year history")
+            ]
+            
+            for period, description in approaches:
                 try:
+                    self.logger.debug(f"Attempting {description} for {symbol}")
                     hist = stock.history(period=period)
                     if not hist.empty:
+                        self.logger.info(f"Successfully retrieved {description} for {symbol}")
                         break
                 except Exception as e:
-                    self.logger.debug(f"Failed to get {period} data for {symbol}: {str(e)}")
+                    self.logger.debug(f"Failed {description} for {symbol}: {str(e)}")
                     continue
+            
+            # If history failed, try getting current info directly
+            if hist is None or hist.empty:
+                try:
+                    self.logger.info(f"History failed for {symbol}, trying direct info lookup")
+                    info = stock.info
+                    current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose')
+                    
+                    if current_price and current_price > 0:
+                        self.logger.info(f"Retrieved current price {current_price} for {symbol} from info")
+                        return {
+                            "symbol": symbol,
+                            "current_price": float(current_price),
+                            "company_name": info.get('longName', f"{symbol} Inc."),
+                            "sector": info.get('sector', 'Unknown'),
+                            "industry": info.get('industry', 'Unknown'),
+                            "market_cap": info.get('marketCap'),
+                            "pe_ratio": info.get('trailingPE'),
+                            "dividend_yield": info.get('dividendYield'),
+                            "historical_data": [],  # No historical data available
+                            "data_source": "yahoo_info_direct",
+                            "price_change": 0,
+                            "price_change_pct": 0
+                        }
+                except Exception as e:
+                    self.logger.warning(f"Direct info lookup also failed for {symbol}: {str(e)}")
             
             # If real-time data failed, try to get cached data from database (only if recent)
             if (hist is None or hist.empty) and db is not None:
@@ -85,12 +99,17 @@ class DataService:
                             "data_source": f"cached_{cache_age_hours:.1f}h_old"
                         }
                     else:
-                        self.logger.warning(f"Cached data for {symbol} is too old ({cache_age_hours:.1f} hours), falling back to mock data")
+                        self.logger.warning(f"Cached data for {symbol} is too old ({cache_age_hours:.1f} hours), will return error if no real-time data")
             
-            # If both real-time and cached data failed, use mock data as last resort
+            # If both real-time and cached data failed, return error - NO MOCK DATA
             if hist is None or hist.empty:
-                self.logger.warning(f"No real or cached data available for {symbol}, using mock data")
-                return self._get_mock_data(symbol)
+                self.logger.error(f"CRITICAL: No real market data available for {symbol}")
+                return {
+                    "error": f"Unable to retrieve current market data for {symbol}",
+                    "message": "Real-time market data is temporarily unavailable. Please try again.",
+                    "symbol": symbol,
+                    "data_source": "unavailable"
+                }
             
             # Get current stock info
             try:
@@ -140,22 +159,30 @@ class DataService:
             
         except Exception as e:
             self.logger.error(f"Error getting market data for {symbol}: {str(e)}")
-            return self._get_mock_data(symbol)
+            return {
+                "error": f"Failed to retrieve market data for {symbol}: {str(e)}",
+                "symbol": symbol,
+                "data_source": "error"
+            }
     
     def save_stock_data(self, db: Session, symbol: str) -> StockDataResponse:
         """Save current stock data to database"""
         try:
             market_data = self.get_market_data(symbol, days=1)
             
-            # Use mock data if no historical data available
+            # Check if we have valid market data
+            if "error" in market_data:
+                self.logger.error(f"Cannot save stock data for {symbol}: {market_data['error']}")
+                raise Exception(f"Market data unavailable for {symbol}")
+            
+            # Use current price data if no historical data available
             if not market_data.get("historical_data"):
-                # Create mock historical data
                 hist_data = {
-                    "open": market_data["current_price"] * 0.99,
-                    "high": market_data["current_price"] * 1.02,
-                    "low": market_data["current_price"] * 0.98,
+                    "open": market_data["current_price"],
+                    "high": market_data["current_price"],
+                    "low": market_data["current_price"],
                     "close": market_data["current_price"],
-                    "volume": random.randint(1000000, 10000000)
+                    "volume": 0  # No volume data available
                 }
             else:
                 hist_data = market_data["historical_data"][-1]
@@ -189,87 +216,96 @@ class DataService:
         symbols = [row[0] for row in db.query(StockData.symbol).distinct().all()]
         stocks_data = []
         for symbol in symbols:
-            # Try to get the latest StockData from the DB
-            stock_db = db.query(StockData).filter(StockData.symbol == symbol).order_by(StockData.timestamp.desc()).first()
-            if stock_db:
-                stocks_data.append({
-                    "symbol": stock_db.symbol,
-                    "current_price": stock_db.close_price,
-                    "price_change": 0,  # Could be calculated if we fetch previous row
-                    "price_change_pct": 0,
-                    "market_cap": stock_db.market_cap,
-                    "pe_ratio": stock_db.pe_ratio,
-                    "dividend_yield": stock_db.dividend_yield,
-                    "historical_data": [],  # Could be filled with more queries
-                    "company_name": symbol,
-                    "sector": "Unknown",
-                    "industry": "Unknown"
-                })
-            else:
-                # Fallback to live/mock data
-                try:
-                    market_data = self.get_market_data(symbol, days=1)
+            try:
+                # Get real-time market data with historical charts
+                market_data = self.get_market_data(symbol, days=30, db=db)
+                
+                if "error" not in market_data:
                     stocks_data.append(market_data)
-                except Exception as e:
-                    self.logger.warning(f"Exception getting data for {symbol}: {str(e)}")
-                    stocks_data.append(self._get_mock_data(symbol))
+                else:
+                    # If market data failed, try to get basic cached data
+                    stock_db = db.query(StockData).filter(StockData.symbol == symbol).order_by(StockData.timestamp.desc()).first()
+                    if stock_db:
+                        # Get historical data for price chart (last 30 days)
+                        historical_stocks = db.query(StockData).filter(
+                            StockData.symbol == symbol
+                        ).order_by(StockData.timestamp.desc()).limit(30).all()
+                        
+                        historical_data = [
+                            {
+                                "date": stock.timestamp.strftime("%Y-%m-%d"),
+                                "close": float(stock.close_price),
+                                "open": float(stock.open_price),
+                                "high": float(stock.high_price),
+                                "low": float(stock.low_price),
+                                "volume": stock.volume or 0
+                            }
+                            for stock in reversed(historical_stocks)  # Reverse to get chronological order
+                        ]
+                        
+                        stocks_data.append({
+                            "symbol": stock_db.symbol,
+                            "current_price": float(stock_db.close_price),
+                            "price_change": 0,  # Could be calculated if needed
+                            "price_change_pct": 0,
+                            "market_cap": stock_db.market_cap,
+                            "pe_ratio": stock_db.pe_ratio,
+                            "dividend_yield": stock_db.dividend_yield,
+                            "historical_data": historical_data,
+                            "company_name": symbol,
+                            "sector": "Unknown",
+                            "industry": "Unknown",
+                            "data_source": "cached_with_history"
+                        })
+                    else:
+                        # No market data available at all
+                        self.logger.warning(f"No market data available for {symbol}")
+                        stocks_data.append({
+                            "symbol": symbol,
+                            "error": f"Market data unavailable for {symbol}",
+                            "historical_data": [],
+                            "data_source": "unavailable"
+                        })
+                        
+            except Exception as e:
+                self.logger.error(f"Exception getting data for {symbol}: {str(e)}")
+                stocks_data.append({
+                    "symbol": symbol,
+                    "error": f"Failed to retrieve data for {symbol}: {str(e)}",
+                    "historical_data": [],
+                    "data_source": "error"
+                })
+                
         return stocks_data
     
-    def _get_mock_data(self, symbol: str) -> Dict:
-        """Get realistic mock data for testing when API fails"""
-        # Use predefined data if available
-        if symbol in self.mock_data:
-            mock_info = self.mock_data[symbol]
-            base_price = mock_info["base_price"]
-            company_name = mock_info["name"]
-            sector = mock_info["sector"]
-            industry = mock_info["industry"]
-        else:
-            # Use deterministic base price based on symbol hash to avoid randomness
-            symbol_hash = abs(hash(symbol))
-            base_price = 50 + (symbol_hash % 450)  # Price between $50-$500, consistent per symbol
-            company_name = f"{symbol} Corporation"
-            sector = "Technology"
-            industry = "Software"
-        
-        # Use consistent price variation based on symbol hash for deterministic results
-        # This prevents random fluctuations when markets are closed
-        symbol_hash = abs(hash(symbol))
-        price_variation = ((symbol_hash % 1000) / 1000.0 - 0.5) * 0.1  # ±5% variation, but consistent
-        current_price = base_price * (1 + price_variation)
-        price_change = current_price - base_price
-        price_change_pct = (price_change / base_price) * 100
-        
-        # Generate some mock historical data (deterministic)
-        historical_data = []
-        for i in range(5):
-            date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-            # Use deterministic price variation based on symbol and day
-            day_variation = ((abs(hash(symbol + str(i))) % 200) / 1000.0 - 0.1)  # ±10% variation
-            day_price = base_price * (1 + day_variation)
-            volume = 1000000 + (abs(hash(symbol + str(i))) % 9000000)  # Consistent volume
-            historical_data.append({
-                "date": date,
-                "open": day_price * 0.99,
-                "high": day_price * 1.02,
-                "low": day_price * 0.98,
-                "close": day_price,
-                "volume": volume
-            })
-        
-        return {
-            "symbol": symbol,
-            "current_price": round(current_price, 2),
-            "price_change": round(price_change, 2),
-            "price_change_pct": round(price_change_pct, 2),
-            "market_cap": random.uniform(1e9, 1e12),
-            "pe_ratio": random.uniform(10, 50),
-            "dividend_yield": random.uniform(0, 0.05),
-            "historical_data": historical_data,
-            "company_name": company_name,
-            "sector": sector,
-            "industry": industry
-        }
+    def add_stock(self, db: Session, symbol: str) -> Dict:
+        """Add a stock to tracking by getting real market data and saving to database"""
+        try:
+            # Get real market data for the symbol
+            market_data = self.get_market_data(symbol, days=30, db=db)
+            
+            if "error" in market_data:
+                raise Exception(f"Cannot add {symbol}: {market_data['error']}")
+            
+            # Save the stock data to database
+            try:
+                self.save_stock_data(db, symbol)
+                self.logger.info(f"Successfully added {symbol} to tracking with real market data")
+            except Exception as save_error:
+                self.logger.warning(f"Could not save {symbol} to database: {str(save_error)}")
+            
+            return {
+                "message": f"Successfully added {symbol} to tracking",
+                "symbol": symbol,
+                "current_price": market_data.get("current_price"),
+                "company_name": market_data.get("company_name"),
+                "sector": market_data.get("sector"),
+                "data_source": market_data.get("data_source")
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error adding stock {symbol}: {str(e)}")
+            raise Exception(f"Failed to add {symbol}: {str(e)}")
     
     def _rate_limit(self) -> None:
         """Implement rate limiting for API calls."""
