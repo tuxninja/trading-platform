@@ -112,6 +112,15 @@ class SchedulerService:
                 max_instances=1
             )
             
+            # Auto-close stale trades (every 2 hours during market hours)
+            self.scheduler.add_job(
+                self._auto_close_stale_trades,
+                CronTrigger(minute="0", hour="*/2", day_of_week="mon-fri"),
+                id="stale_trade_cleanup",
+                replace_existing=True,
+                max_instances=1
+            )
+            
             self.logger.info("Default scheduled tasks configured")
             
         except Exception as e:
@@ -331,6 +340,35 @@ class SchedulerService:
                 
         except Exception as e:
             self.logger.error(f"Error during adaptive learning analysis: {str(e)}")
+    
+    async def _auto_close_stale_trades(self):
+        """Automatically close or cancel stale OPEN trades to free up capital"""
+        try:
+            self.logger.info("Running auto-close for stale trades...")
+            
+            # Get database session
+            db = next(get_db())
+            
+            try:
+                from services.trading_service import TradingService
+                
+                trading_service = TradingService()
+                results = trading_service.auto_close_stale_trades(db, max_age_hours=24)
+                
+                if "error" not in results:
+                    self.logger.info(f"Stale trade cleanup completed: {results['trades_closed']} closed, "
+                                   f"{results['trades_cancelled']} cancelled, ${results['capital_freed']:.2f} freed")
+                    
+                    if results['errors']:
+                        self.logger.warning(f"Stale trade cleanup had {len(results['errors'])} errors")
+                else:
+                    self.logger.error(f"Stale trade cleanup failed: {results['error']}")
+                
+            finally:
+                db.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error during stale trade cleanup: {str(e)}")
     
     def _parse_schedule_expression(self, expression: str):
         """Parse a schedule expression into a CronTrigger."""

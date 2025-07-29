@@ -316,6 +316,97 @@ class TradingService:
         
         return TradeResponse.from_orm(trade)
     
+    def cancel_trade(self, db: Session, trade_id: int, reason: str = "Manual cancellation") -> TradeResponse:
+        """Cancel an OPEN trade and return capital to available balance"""
+        trade = db.query(Trade).filter(Trade.id == trade_id).first()
+        if not trade:
+            raise Exception("Trade not found")
+        
+        if trade.status != "OPEN":
+            raise Exception(f"Cannot cancel trade with status: {trade.status}")
+        
+        # Update trade status
+        trade.status = "CANCELLED"
+        trade.close_timestamp = datetime.now()
+        trade.profit_loss = 0.0  # No profit/loss on cancellation
+        
+        # Return the allocated capital to available balance
+        if trade.trade_type == "BUY":
+            self.current_balance += trade.total_value
+            self.logger.info(f"Trade {trade_id} cancelled: ${trade.total_value:.2f} returned to balance")
+            
+            # Remove from positions
+            if trade.symbol in self.positions:
+                self.positions[trade.symbol] -= trade.quantity
+                if self.positions[trade.symbol] <= 0:
+                    del self.positions[trade.symbol]
+        
+        self.logger.info(f"Updated balance after cancellation: ${self.current_balance:.2f}")
+        self.logger.info(f"Cancellation reason: {reason}")
+        
+        db.commit()
+        db.refresh(trade)
+        
+        return TradeResponse.from_orm(trade)
+    
+    def auto_close_stale_trades(self, db: Session, max_age_hours: int = 24) -> Dict:
+        """Automatically close OPEN trades older than specified hours"""
+        try:
+            from services.data_service import DataService
+            
+            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            stale_trades = db.query(Trade).filter(
+                Trade.status == "OPEN",
+                Trade.timestamp < cutoff_time
+            ).all()
+            
+            results = {
+                "trades_processed": 0,
+                "trades_closed": 0,
+                "trades_cancelled": 0,
+                "capital_freed": 0.0,
+                "errors": []
+            }
+            
+            data_service = DataService()
+            
+            for trade in stale_trades:
+                try:
+                    results["trades_processed"] += 1
+                    
+                    # Get current market price for closing
+                    market_data = data_service.get_market_data(trade.symbol, days=1, db=db)
+                    
+                    if "error" not in market_data and "current_price" in market_data:
+                        # Close the trade at current market price
+                        current_price = market_data["current_price"]
+                        self.close_trade(db, trade.id, current_price)
+                        results["trades_closed"] += 1
+                        self.logger.info(f"Auto-closed stale trade {trade.id} at ${current_price:.2f}")
+                        
+                    else:
+                        # Cancel the trade if we can't get market price
+                        cancelled_trade = self.cancel_trade(
+                            db, 
+                            trade.id, 
+                            f"Auto-cancelled: unable to get market price after {max_age_hours}h"
+                        )
+                        results["trades_cancelled"] += 1
+                        results["capital_freed"] += trade.total_value
+                        self.logger.warning(f"Auto-cancelled stale trade {trade.id} - no market data available")
+                
+                except Exception as e:
+                    error_msg = f"Failed to process stale trade {trade.id}: {str(e)}"
+                    results["errors"].append(error_msg)
+                    self.logger.error(error_msg)
+            
+            self.logger.info(f"Auto-close completed: {results['trades_closed']} closed, {results['trades_cancelled']} cancelled, ${results['capital_freed']:.2f} freed")
+            return results
+            
+        except Exception as e:
+            self.logger.error(f"Error in auto_close_stale_trades: {str(e)}")
+            return {"error": str(e)}
+    
     def get_performance_metrics(self, db: Session) -> Dict:
         """Calculate trading performance metrics"""
         try:

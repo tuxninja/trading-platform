@@ -549,6 +549,30 @@ async def close_trade(trade_id: int, close_price: Optional[float] = Body(None, e
         logger.error(f"Unexpected error closing trade {trade_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.post("/api/trades/{trade_id}/cancel")
+async def cancel_trade(trade_id: int, reason: Optional[str] = Body("Manual cancellation", embed=True), db: Session = Depends(get_db)):
+    """Cancel an OPEN trade and return capital to available balance"""
+    try:
+        logger.info(f"Cancelling trade: {trade_id}, reason: {reason}")
+        result = trading_service.cancel_trade(db, trade_id, reason)
+        logger.info(f"Trade cancelled successfully: {trade_id}")
+        return result
+    except Exception as e:
+        logger.error(f"Error cancelling trade {trade_id}: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/trades/auto-close-stale")
+async def auto_close_stale_trades(max_age_hours: int = Body(24, embed=True), db: Session = Depends(get_db)):
+    """Automatically close or cancel OPEN trades older than specified hours"""
+    try:
+        logger.info(f"Running auto-close for trades older than {max_age_hours} hours")
+        result = trading_service.auto_close_stale_trades(db, max_age_hours)
+        logger.info(f"Auto-close completed: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in auto-close stale trades: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/trades/{trade_id}")
 async def delete_trade(trade_id: int, db: Session = Depends(get_db)):
     """Delete a trade"""
