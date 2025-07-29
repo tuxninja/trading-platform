@@ -28,6 +28,7 @@ from services.market_scanner import MarketScannerService
 from services.strategy_service import StrategyService
 from services.position_manager import PositionManager
 from services.performance_service import PerformanceService
+from services.watchlist_service import WatchlistService
 from config import config, setup_logging
 from exceptions import TradingAppException
 from auth import auth_service, get_current_user, optional_auth
@@ -86,6 +87,7 @@ market_scanner = MarketScannerService()
 strategy_service = StrategyService()
 position_manager = PositionManager()
 performance_service = PerformanceService()
+watchlist_service = WatchlistService()
 
 logger.info(f"Python executable: {sys.executable}")
 logger.info(f"yfinance version: {yfinance.__version__}")
@@ -672,6 +674,137 @@ async def add_stock(symbol: str = Body(..., embed=True), db: Session = Depends(g
 async def get_market_data(symbol: str, days: int = 30):
     """Get market data for a stock"""
     return data_service.get_market_data(symbol, days)
+
+# WATCHLIST MANAGEMENT ENDPOINTS
+
+@app.get("/api/watchlist")
+async def get_watchlist(include_inactive: bool = False, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user's watchlist with current market data and performance"""
+    try:
+        user_email = current_user.get("email")
+        watchlist = watchlist_service.get_watchlist(db, user_email, include_inactive)
+        return watchlist
+    except TradingAppException as e:
+        logger.error(f"Watchlist error for {user_email}: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected watchlist error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/watchlist")
+async def add_stock_to_watchlist(
+    stock_data: dict = Body(...), 
+    current_user: dict = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Add a stock to user's watchlist with monitoring preferences"""
+    try:
+        user_email = current_user.get("email")
+        symbol = stock_data.get("symbol", "").upper().strip()
+        
+        if not symbol or not symbol.isalpha() or len(symbol) > 10:
+            raise HTTPException(status_code=400, detail="Invalid stock symbol format")
+        
+        preferences = stock_data.get("preferences", {})
+        logger.info(f"Adding {symbol} to watchlist for {user_email}")
+        
+        result = watchlist_service.add_stock_to_watchlist(db, symbol, user_email, preferences)
+        logger.info(f"Successfully added {symbol} to watchlist")
+        
+        return {
+            "message": f"Successfully added {symbol} to watchlist",
+            "stock": {
+                "id": result.id,
+                "symbol": result.symbol,
+                "company_name": result.company_name,
+                "sector": result.sector,
+                "is_active": result.is_active,
+                "sentiment_monitoring": result.sentiment_monitoring,
+                "auto_trading": result.auto_trading
+            }
+        }
+        
+    except TradingAppException as e:
+        logger.error(f"Error adding to watchlist: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error adding to watchlist: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.delete("/api/watchlist/{symbol}")
+async def remove_stock_from_watchlist(
+    symbol: str, 
+    current_user: dict = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Remove a stock from user's watchlist"""
+    try:
+        user_email = current_user.get("email")
+        logger.info(f"Removing {symbol} from watchlist for {user_email}")
+        
+        result = watchlist_service.remove_stock_from_watchlist(db, symbol, user_email)
+        logger.info(f"Successfully removed {symbol} from watchlist")
+        
+        return result
+        
+    except TradingAppException as e:
+        logger.error(f"Error removing from watchlist: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error removing from watchlist: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.put("/api/watchlist/{stock_id}")
+async def update_watchlist_preferences(
+    stock_id: int,
+    preferences: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update monitoring and trading preferences for a watchlist stock"""
+    try:
+        user_email = current_user.get("email")
+        logger.info(f"Updating watchlist preferences for stock {stock_id}")
+        
+        result = watchlist_service.update_stock_preferences(db, stock_id, user_email, preferences)
+        
+        return {
+            "message": "Preferences updated successfully",
+            "stock": {
+                "id": result.id,
+                "symbol": result.symbol,
+                "preferences": {
+                    "sentiment_monitoring": result.sentiment_monitoring,
+                    "auto_trading": result.auto_trading,
+                    "position_size_limit": result.position_size_limit,
+                    "min_confidence_threshold": result.min_confidence_threshold,
+                    "priority_level": result.priority_level
+                }
+            }
+        }
+        
+    except TradingAppException as e:
+        logger.error(f"Error updating watchlist preferences: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error updating watchlist preferences: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/watchlist/alerts")
+async def get_watchlist_alerts(
+    unread_only: bool = False,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get alerts for user's watchlist stocks"""
+    try:
+        user_email = current_user.get("email")
+        alerts = watchlist_service.get_watchlist_alerts(db, user_email, unread_only)
+        return alerts
+        
+    except Exception as e:
+        logger.error(f"Error getting watchlist alerts: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/run-strategy")
 async def run_strategy(db: Session = Depends(get_db)):

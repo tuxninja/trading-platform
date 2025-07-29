@@ -372,3 +372,74 @@ class PerformanceBaseline(Base):
     
     # Relationships
     strategy = relationship("Strategy")
+
+# WATCHLIST MANAGEMENT MODELS
+
+class WatchlistStock(Base):
+    """User's curated watchlist for active stock monitoring and trading"""
+    __tablename__ = "watchlist_stocks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    company_name = Column(String)
+    sector = Column(String, nullable=True)
+    industry = Column(String, nullable=True)
+    
+    # User preferences
+    is_active = Column(Boolean, default=True)  # Active monitoring
+    sentiment_monitoring = Column(Boolean, default=True)  # Monitor sentiment
+    auto_trading = Column(Boolean, default=True)  # Allow automated trading
+    
+    # Trading parameters
+    position_size_limit = Column(Float, default=5000.0)  # Max $ per position
+    min_confidence_threshold = Column(Float, default=0.3)  # Min confidence for trades
+    custom_buy_threshold = Column(Float, nullable=True)  # Override default buy threshold
+    custom_sell_threshold = Column(Float, nullable=True)  # Override default sell threshold
+    
+    # Monitoring preferences
+    priority_level = Column(String, default="NORMAL")  # HIGH, NORMAL, LOW
+    news_alerts = Column(Boolean, default=True)
+    price_alerts = Column(Boolean, default=False)
+    
+    # Metadata
+    added_by = Column(String)  # User who added this stock
+    added_reason = Column(Text, nullable=True)  # Why this stock was added
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_sentiment_check = Column(DateTime(timezone=True), nullable=True)
+    last_trade_signal = Column(DateTime(timezone=True), nullable=True)
+    
+    # Performance tracking
+    total_trades = Column(Integer, default=0)
+    successful_trades = Column(Integer, default=0)
+    total_pnl = Column(Float, default=0.0)
+    
+class WatchlistAlert(Base):
+    """Alerts and notifications for watchlist stocks"""
+    __tablename__ = "watchlist_alerts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    watchlist_stock_id = Column(Integer, ForeignKey("watchlist_stocks.id"))
+    alert_type = Column(String)  # PRICE_CHANGE, SENTIMENT_CHANGE, NEWS_EVENT, TRADE_SIGNAL
+    
+    # Alert content
+    title = Column(String)
+    message = Column(Text)
+    severity = Column(String, default="INFO")  # CRITICAL, WARNING, INFO
+    
+    # Alert triggers
+    trigger_value = Column(Float, nullable=True)  # Price, sentiment score, etc.
+    threshold_value = Column(Float, nullable=True)  # What threshold was crossed
+    
+    # Status
+    is_read = Column(Boolean, default=False)
+    is_dismissed = Column(Boolean, default=False)
+    requires_action = Column(Boolean, default=False)
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    dismissed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    watchlist_stock = relationship("WatchlistStock")

@@ -29,7 +29,7 @@ class Config:
     SELL_SENTIMENT_THRESHOLD: float = float(os.getenv("SELL_SENTIMENT_THRESHOLD", "-0.2"))
     
     # Rate Limiting
-    API_RATE_LIMIT: float = float(os.getenv("API_RATE_LIMIT", "1.0"))  # seconds between API calls
+    API_RATE_LIMIT: float = float(os.getenv("API_RATE_LIMIT", "2.5"))  # seconds between API calls
     NEWS_API_RATE_LIMIT: float = float(os.getenv("NEWS_API_RATE_LIMIT", "0.2"))
     
     # Logging

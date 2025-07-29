@@ -36,7 +36,7 @@ class DataService:
             "CRM": {"name": "Salesforce Inc.", "base_price": 250.0, "sector": "Technology", "industry": "Software"},
             "ORCL": {"name": "Oracle Corporation", "base_price": 120.0, "sector": "Technology", "industry": "Software"},
             "ADBE": {"name": "Adobe Inc.", "base_price": 520.0, "sector": "Technology", "industry": "Software"},
-            "PYPL": {"name": "PayPal Holdings Inc.", "base_price": 60.0, "sector": "Technology", "industry": "Software"},
+            "PYPL": {"name": "PayPal Holdings Inc.", "base_price": 78.0, "sector": "Technology", "industry": "Software"},
             "UBER": {"name": "Uber Technologies Inc.", "base_price": 70.0, "sector": "Technology", "industry": "Software"},
             "LYFT": {"name": "Lyft Inc.", "base_price": 15.0, "sector": "Technology", "industry": "Software"}
         }
@@ -58,27 +58,34 @@ class DataService:
                     self.logger.debug(f"Failed to get {period} data for {symbol}: {str(e)}")
                     continue
             
-            # If real-time data failed, try to get cached data from database
+            # If real-time data failed, try to get cached data from database (only if recent)
             if (hist is None or hist.empty) and db is not None:
                 self.logger.info(f"Yahoo Finance failed for {symbol}, checking database cache")
                 cached_data = db.query(StockData).filter(StockData.symbol == symbol).order_by(StockData.timestamp.desc()).first()
                 
                 if cached_data and cached_data.close_price > 0:
-                    self.logger.info(f"Using cached data for {symbol} from {cached_data.timestamp}")
-                    return {
-                        "symbol": symbol,
-                        "current_price": float(cached_data.close_price),
-                        "price_change": 0,  # Could calculate from previous record
-                        "price_change_pct": 0,
-                        "market_cap": cached_data.market_cap,
-                        "pe_ratio": cached_data.pe_ratio,
-                        "dividend_yield": cached_data.dividend_yield,
-                        "historical_data": [],
-                        "company_name": symbol,
-                        "sector": "Unknown",
-                        "industry": "Unknown",
-                        "data_source": "cached"
-                    }
+                    # Only use cached data if it's less than 4 hours old
+                    from datetime import datetime, timedelta
+                    cache_age_hours = (datetime.now() - cached_data.timestamp).total_seconds() / 3600
+                    
+                    if cache_age_hours <= 4:
+                        self.logger.info(f"Using cached data for {symbol} from {cached_data.timestamp} ({cache_age_hours:.1f} hours old)")
+                        return {
+                            "symbol": symbol,
+                            "current_price": float(cached_data.close_price),
+                            "price_change": 0,  # Could calculate from previous record
+                            "price_change_pct": 0,
+                            "market_cap": cached_data.market_cap,
+                            "pe_ratio": cached_data.pe_ratio,
+                            "dividend_yield": cached_data.dividend_yield,
+                            "historical_data": [],
+                            "company_name": symbol,
+                            "sector": "Unknown",
+                            "industry": "Unknown",
+                            "data_source": f"cached_{cache_age_hours:.1f}h_old"
+                        }
+                    else:
+                        self.logger.warning(f"Cached data for {symbol} is too old ({cache_age_hours:.1f} hours), falling back to mock data")
             
             # If both real-time and cached data failed, use mock data as last resort
             if hist is None or hist.empty:
