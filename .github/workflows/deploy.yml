@@ -142,6 +142,8 @@ jobs:
       run: |
         mkdir deployment-package
         cp docker-compose.prod.yml deployment-package/
+        # nginx.conf is in root directory, not deployment-package
+        # We'll transfer it directly in the next step
         
         # Create updated docker-compose with new image tags
         sed -i "s|image: backend:.*|image: ${{ needs.build-and-push.outputs.backend-image }}|g" deployment-package/docker-compose.prod.yml
@@ -373,6 +375,19 @@ jobs:
           exit 1
         fi
         
+        # Transfer nginx.conf
+        echo "📄 Transferring nginx.conf..."
+        if ssh -i private_key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o BatchMode=yes \
+            $USER@$HOST "cat > ~/nginx.conf" < nginx.conf; then
+          echo "✅ nginx.conf transferred successfully"
+        else
+          echo "❌ Failed to transfer nginx.conf"
+          exit 1
+        fi
+        
         # Transfer ECR token
         echo "📄 Transferring ECR token..."
         if ssh -i private_key.pem \
@@ -407,10 +422,10 @@ jobs:
             -o BatchMode=yes \
             $USER@$HOST << 'VERIFY_EOF'
           echo "📋 Files in home directory:"
-          ls -la ~/ | grep -E "(docker-compose|ecr_token|update\.sh)"
+          ls -la ~/ | grep -E "(docker-compose|nginx\.conf|ecr_token|update\.sh)"
           
           echo "📏 File sizes:"
-          wc -c ~/docker-compose.prod.yml ~/ecr_token.txt ~/update.sh 2>/dev/null || echo "Some files missing"
+          wc -c ~/docker-compose.prod.yml ~/nginx.conf ~/ecr_token.txt ~/update.sh 2>/dev/null || echo "Some files missing"
         VERIFY_EOF
         
         echo "✅ All files transferred and verified"
@@ -428,13 +443,14 @@ jobs:
           echo "📄 Moving deployment files from home to /opt/trading/..."
           # Move files from home directory to /opt/trading/ with proper permissions
           sudo cp ~/docker-compose.prod.yml /opt/trading/
+          sudo cp ~/nginx.conf /opt/trading/
           sudo cp ~/ecr_token.txt /opt/trading/
           sudo cp ~/update.sh /opt/trading/
           sudo chown -R ec2-user:ec2-user /opt/trading/
           sudo chmod +x /opt/trading/update.sh
           
           # Clean up files from home directory
-          rm -f ~/docker-compose.prod.yml ~/ecr_token.txt ~/update.sh
+          rm -f ~/docker-compose.prod.yml ~/nginx.conf ~/ecr_token.txt ~/update.sh
           
           cd /opt/trading
           
