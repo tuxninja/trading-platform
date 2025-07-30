@@ -264,16 +264,84 @@ jobs:
         fi
         SCRIPT_EOF
 
-        # Copy deployment files to user's home directory first
-        echo "📄 Copying deployment files to home directory..."
-        scp -i private_key.pem \
+        # Copy deployment files using SSH with embedded content (more reliable than SCP)
+        echo "📄 Copying deployment files via SSH..."
+        
+        # First, check the remote system status
+        ssh -i private_key.pem \
             -o StrictHostKeyChecking=no \
             -o ConnectTimeout=30 \
             -o BatchMode=yes \
-            deployment-package/docker-compose.prod.yml \
-            ecr_token.txt \
-            update.sh \
-            $USER@$HOST:~/
+            $USER@$HOST << 'PREFLIGHT_EOF'
+          echo "🔍 Pre-flight System Check:"
+          echo "Disk space:"
+          df -h /home/ec2-user/
+          echo "Home directory permissions:"
+          ls -la /home/ec2-user/ | head -5
+          echo "Current user: $(whoami)"
+          echo "Home directory: $HOME"
+          echo "Write test:"
+          echo "test" > ~/test_write.tmp && echo "✅ Home directory writable" || echo "❌ Home directory not writable"
+          rm -f ~/test_write.tmp
+        PREFLIGHT_EOF
+        
+        # Create deployment files on the remote server directly
+        echo "📄 Creating deployment files on remote server..."
+        
+        # Transfer docker-compose.prod.yml
+        echo "📄 Transferring docker-compose.prod.yml..."
+        if ssh -i private_key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o BatchMode=yes \
+            $USER@$HOST "cat > ~/docker-compose.prod.yml" < deployment-package/docker-compose.prod.yml; then
+          echo "✅ docker-compose.prod.yml transferred successfully"
+        else
+          echo "❌ Failed to transfer docker-compose.prod.yml"
+          exit 1
+        fi
+        
+        # Transfer ECR token
+        echo "📄 Transferring ECR token..."
+        if ssh -i private_key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o BatchMode=yes \
+            $USER@$HOST "cat > ~/ecr_token.txt" < ecr_token.txt; then
+          echo "✅ ECR token transferred successfully"
+        else
+          echo "❌ Failed to transfer ECR token"
+          exit 1
+        fi
+        
+        # Transfer update script
+        echo "📄 Transferring update script..."
+        if ssh -i private_key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o BatchMode=yes \
+            $USER@$HOST "cat > ~/update.sh" < update.sh; then
+          echo "✅ Update script transferred successfully"
+        else
+          echo "❌ Failed to transfer update script"
+          exit 1
+        fi
+        
+        # Verify all files were created
+        echo "🔍 Verifying transferred files..."
+        ssh -i private_key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o BatchMode=yes \
+            $USER@$HOST << 'VERIFY_EOF'
+          echo "📋 Files in home directory:"
+          ls -la ~/ | grep -E "(docker-compose|ecr_token|update\.sh)"
+          
+          echo "📏 File sizes:"
+          wc -c ~/docker-compose.prod.yml ~/ecr_token.txt ~/update.sh 2>/dev/null || echo "Some files missing"
+        VERIFY_EOF
+        
+        echo "✅ All files transferred and verified"
         
         # Execute deployment
         echo "🚀 Executing deployment on EC2..."
