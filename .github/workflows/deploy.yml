@@ -267,7 +267,7 @@ jobs:
         # Copy deployment files using SSH with embedded content (more reliable than SCP)
         echo "📄 Copying deployment files via SSH..."
         
-        # First, check the remote system status
+        # First, check the remote system status and clean up if needed
         ssh -i private_key.pem \
             -o StrictHostKeyChecking=no \
             -o ConnectTimeout=30 \
@@ -275,7 +275,79 @@ jobs:
             $USER@$HOST << 'PREFLIGHT_EOF'
           echo "🔍 Pre-flight System Check:"
           echo "Disk space:"
-          df -h /home/ec2-user/
+          df -h /
+          
+          echo "🔍 Largest space consumers:"
+          sudo du -sh /var/lib/docker 2>/dev/null || echo "Docker dir not found"
+          sudo du -sh /var/log 2>/dev/null || echo "Log dir check failed"
+          sudo du -sh /tmp 2>/dev/null || echo "Tmp dir check failed"
+          
+          echo "📊 Docker storage usage (if available):"
+          sudo docker system df 2>/dev/null || echo "Docker not running or not installed"
+          
+          # Check if disk is full (95% or more)
+          DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+          echo "Root filesystem usage: $DISK_USAGE%"
+          
+          if [ "$DISK_USAGE" -ge 95 ]; then
+            echo "⚠️ Disk space critical ($DISK_USAGE% full) - performing emergency cleanup..."
+            
+            # Clean up Docker resources (most effective for space recovery)
+            echo "🧹 Cleaning Docker resources..."
+            
+            # Stop all containers first
+            sudo docker stop $(sudo docker ps -aq) 2>/dev/null || echo "No containers to stop"
+            
+            # Remove all containers
+            sudo docker container prune -f || echo "Container cleanup failed"
+            
+            # Remove all unused images (including dangling)
+            sudo docker image prune -a -f || echo "Image cleanup failed"
+            
+            # Remove unused volumes
+            sudo docker volume prune -f || echo "Volume cleanup failed"
+            
+            # Remove unused networks
+            sudo docker network prune -f || echo "Network cleanup failed"
+            
+            # Final system prune to catch anything else
+            sudo docker system prune -a -f --volumes || echo "System cleanup failed"
+            
+            # Show Docker storage usage
+            echo "📊 Docker storage after cleanup:"
+            sudo docker system df || echo "Docker df failed"
+            
+            # Clean up old logs
+            echo "🧹 Cleaning system logs..."
+            sudo journalctl --vacuum-time=7d || echo "Journal cleanup failed"
+            sudo find /var/log -name "*.log" -type f -mtime +7 -delete 2>/dev/null || echo "Log cleanup failed"
+            
+            # Clean up package cache
+            echo "🧹 Cleaning package cache..."
+            sudo yum clean all || sudo apt-get clean || echo "Package cache cleanup failed"
+            
+            # Clean up temporary files
+            echo "🧹 Cleaning temporary files..."
+            sudo find /tmp -type f -mtime +1 -delete 2>/dev/null || echo "Temp cleanup failed"
+            sudo find /var/tmp -type f -mtime +1 -delete 2>/dev/null || echo "Var temp cleanup failed"
+            
+            # Show results after cleanup
+            echo "📊 Disk space after cleanup:"
+            df -h /
+            
+            # Check if we have enough space now
+            NEW_DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+            if [ "$NEW_DISK_USAGE" -ge 90 ]; then
+              echo "❌ Still insufficient disk space after cleanup ($NEW_DISK_USAGE% full)"
+              echo "🔧 Manual intervention required - disk cleanup needed"
+              exit 1
+            else
+              echo "✅ Sufficient disk space available after cleanup ($NEW_DISK_USAGE% full)"
+            fi
+          else
+            echo "✅ Sufficient disk space available ($DISK_USAGE% full)"
+          fi
+          
           echo "Home directory permissions:"
           ls -la /home/ec2-user/ | head -5
           echo "Current user: $(whoami)"
