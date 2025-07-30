@@ -32,6 +32,11 @@ class Config:
     API_RATE_LIMIT: float = float(os.getenv("API_RATE_LIMIT", "3.0"))  # seconds between API calls (increased for reliability)
     NEWS_API_RATE_LIMIT: float = float(os.getenv("NEWS_API_RATE_LIMIT", "2.0"))  # Increased to prevent rate limiting
     
+    # Continuous Monitoring
+    SENTIMENT_REFRESH_INTERVAL_MINUTES: int = int(os.getenv("SENTIMENT_REFRESH_INTERVAL_MINUTES", "30"))
+    PRICE_CHECK_INTERVAL_MINUTES: int = int(os.getenv("PRICE_CHECK_INTERVAL_MINUTES", "5"))
+    ALERT_COOLDOWN_MINUTES: int = int(os.getenv("ALERT_COOLDOWN_MINUTES", "60"))
+    
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT: str = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")

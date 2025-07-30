@@ -87,6 +87,10 @@ export const watchlistAPI = {
   remove: (symbol) => api.delete(`/api/watchlist/${symbol}`).then(res => res.data),
   updatePreferences: (stockId, preferences) => api.put(`/api/watchlist/${stockId}`, preferences).then(res => res.data),
   getAlerts: (unreadOnly = false) => api.get('/api/watchlist/alerts', { params: { unread_only: unreadOnly } }).then(res => res.data),
+  
+  // Continuous Monitoring
+  getMonitoringStatus: () => api.get('/api/watchlist/monitoring/status').then(res => res.data),
+  runMonitoring: () => api.post('/api/watchlist/monitoring/run').then(res => res.data),
 };
 
 // Strategy API

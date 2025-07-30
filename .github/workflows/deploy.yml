@@ -264,8 +264,8 @@ jobs:
         fi
         SCRIPT_EOF
 
-        # Copy deployment files
-        echo "📄 Copying deployment files..."
+        # Copy deployment files to user's home directory first
+        echo "📄 Copying deployment files to home directory..."
         scp -i private_key.pem \
             -o StrictHostKeyChecking=no \
             -o ConnectTimeout=30 \
@@ -273,7 +273,7 @@ jobs:
             deployment-package/docker-compose.prod.yml \
             ecr_token.txt \
             update.sh \
-            $USER@$HOST:/opt/trading/
+            $USER@$HOST:~/
         
         # Execute deployment
         echo "🚀 Executing deployment on EC2..."
@@ -284,6 +284,18 @@ jobs:
             -o BatchMode=yes \
             $USER@$HOST << EOF
           set -e
+          
+          echo "📄 Moving deployment files from home to /opt/trading/..."
+          # Move files from home directory to /opt/trading/ with proper permissions
+          sudo cp ~/docker-compose.prod.yml /opt/trading/
+          sudo cp ~/ecr_token.txt /opt/trading/
+          sudo cp ~/update.sh /opt/trading/
+          sudo chown -R ec2-user:ec2-user /opt/trading/
+          sudo chmod +x /opt/trading/update.sh
+          
+          # Clean up files from home directory
+          rm -f ~/docker-compose.prod.yml ~/ecr_token.txt ~/update.sh
+          
           cd /opt/trading
           
           echo "📁 Current directory: \$(pwd)"
@@ -428,8 +440,7 @@ jobs:
             exit 1
           fi
           
-          # Make update script executable
-          chmod +x ./update.sh
+          echo "✅ Update script found and executable"
           
           # Run update script
           echo "🔄 Running update script..."

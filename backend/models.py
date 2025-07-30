@@ -391,10 +391,21 @@ class WatchlistStock(Base):
     auto_trading = Column(Boolean, default=True)  # Allow automated trading
     
     # Trading parameters
-    position_size_limit = Column(Float, default=5000.0)  # Max $ per position
+    position_size_limit = Column(Float, default=5000.0)  # Max $ per position (mapped as max_position_size)
     min_confidence_threshold = Column(Float, default=0.3)  # Min confidence for trades
     custom_buy_threshold = Column(Float, nullable=True)  # Override default buy threshold
     custom_sell_threshold = Column(Float, nullable=True)  # Override default sell threshold
+    risk_tolerance = Column(String, default="medium")  # conservative, medium, aggressive
+    
+    # Continuous monitoring fields
+    last_monitored = Column(DateTime(timezone=True), nullable=True)
+    reference_price = Column(Float, nullable=True)  # For percentage change calculations
+    reference_price_updated = Column(DateTime(timezone=True), nullable=True)
+    
+    # Convenience property for compatibility
+    @property
+    def max_position_size(self):
+        return self.position_size_limit
     
     # Monitoring preferences
     priority_level = Column(String, default="NORMAL")  # HIGH, NORMAL, LOW
@@ -430,6 +441,11 @@ class WatchlistAlert(Base):
     # Alert triggers
     trigger_value = Column(Float, nullable=True)  # Price, sentiment score, etc.
     threshold_value = Column(Float, nullable=True)  # What threshold was crossed
+    
+    # Additional monitoring fields
+    is_active = Column(Boolean, default=True)  # Whether alert is active
+    last_triggered = Column(DateTime(timezone=True), nullable=True)  # When last triggered
+    trigger_count = Column(Integer, default=0)  # How many times triggered
     
     # Status
     is_read = Column(Boolean, default=False)

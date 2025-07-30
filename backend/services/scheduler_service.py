@@ -121,6 +121,15 @@ class SchedulerService:
                 max_instances=1
             )
             
+            # Continuous watchlist monitoring (every 10 minutes during market hours)
+            self.scheduler.add_job(
+                self._run_continuous_monitoring,
+                CronTrigger(minute="*/10", hour="9-16", day_of_week="mon-fri"),
+                id="continuous_monitoring",
+                replace_existing=True,
+                max_instances=1
+            )
+            
             self.logger.info("Default scheduled tasks configured")
             
         except Exception as e:
@@ -369,6 +378,37 @@ class SchedulerService:
                 
         except Exception as e:
             self.logger.error(f"Error during stale trade cleanup: {str(e)}")
+    
+    async def _run_continuous_monitoring(self):
+        """Run continuous monitoring for watchlisted stocks"""
+        try:
+            self.logger.info("Running continuous monitoring cycle...")
+            
+            # Get database session
+            db = next(get_db())
+            
+            try:
+                from services.continuous_monitoring_service import continuous_monitoring_service
+                
+                results = await continuous_monitoring_service.run_continuous_monitoring(db)
+                
+                if "error" not in results:
+                    self.logger.info(
+                        f"Continuous monitoring completed: {results['monitored_count']} stocks, "
+                        f"{results['sentiment_updates']} sentiment updates, "
+                        f"{results['price_alerts']} alerts, {results['trading_signals']} signals"
+                    )
+                    
+                    if results['errors']:
+                        self.logger.warning(f"Monitoring had {len(results['errors'])} errors")
+                else:
+                    self.logger.error(f"Continuous monitoring failed: {results['error']}")
+                
+            finally:
+                db.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error during continuous monitoring: {str(e)}")
     
     def _parse_schedule_expression(self, expression: str):
         """Parse a schedule expression into a CronTrigger."""

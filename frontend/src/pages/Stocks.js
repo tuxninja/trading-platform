@@ -11,6 +11,7 @@ import {
 import StockCard from '../components/StockCard';
 import AddStockToWatchlist from '../components/AddStockToWatchlist';
 import StockPreferencesPanel from '../components/StockPreferencesPanel';
+import ContinuousMonitoringStatus from '../components/ContinuousMonitoringStatus';
 import { watchlistAPI } from '../services/api';
 
 const Stocks = () => {
@@ -141,6 +142,9 @@ const Stocks = () => {
           </div>
         </div>
       )}
+
+      {/* Continuous Monitoring Status */}
+      <ContinuousMonitoringStatus />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {watchlist.map((stock) => (

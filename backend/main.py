@@ -29,6 +29,7 @@ from services.strategy_service import StrategyService
 from services.position_manager import PositionManager
 from services.performance_service import PerformanceService
 from services.watchlist_service import WatchlistService
+from services.continuous_monitoring_service import continuous_monitoring_service
 from config import config, setup_logging
 from exceptions import TradingAppException
 from auth import auth_service, get_current_user, optional_auth
@@ -804,6 +805,36 @@ async def get_watchlist_alerts(
         
     except Exception as e:
         logger.error(f"Error getting watchlist alerts: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/watchlist/monitoring/status")
+async def get_monitoring_status(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get continuous monitoring status for user's watchlist"""
+    try:
+        status = continuous_monitoring_service.get_monitoring_status(db)
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting monitoring status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/watchlist/monitoring/run")
+async def run_continuous_monitoring(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Manually trigger continuous monitoring cycle"""
+    try:
+        logger.info("Manual continuous monitoring triggered")
+        result = await continuous_monitoring_service.run_continuous_monitoring(db)
+        logger.info(f"Manual monitoring completed: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error running continuous monitoring: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/run-strategy")
