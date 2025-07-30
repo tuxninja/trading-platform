@@ -671,9 +671,9 @@ async def add_stock(symbol: str = Body(..., embed=True), db: Session = Depends(g
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/market-data/{symbol}")
-async def get_market_data(symbol: str, days: int = 30):
+async def get_market_data(symbol: str, days: int = 30, db: Session = Depends(get_db)):
     """Get market data for a stock"""
-    return data_service.get_market_data(symbol, days)
+    return data_service.get_market_data(symbol, days, db)
 
 # WATCHLIST MANAGEMENT ENDPOINTS
 

@@ -13,6 +13,7 @@ import { sentimentAPI } from '../services/api';
 
 const Sentiment = () => {
   const [selectedStock, setSelectedStock] = useState(null);
+  const [analyzingStock, setAnalyzingStock] = useState(null); // Track which specific stock is being analyzed
   const queryClient = useQueryClient();
 
   const { data: sentimentData, isLoading, error } = useQuery(
@@ -28,14 +29,19 @@ const Sentiment = () => {
   );
 
   const analyzeSentimentMutation = useMutation(
-    (symbol) => sentimentAPI.analyze(symbol),
+    (symbol) => {
+      setAnalyzingStock(symbol); // Set which stock is being analyzed
+      return sentimentAPI.analyze(symbol);
+    },
     {
-      onSuccess: () => {
+      onSuccess: (data, symbol) => {
+        setAnalyzingStock(null); // Clear analyzing state
         queryClient.invalidateQueries('sentiment');
-        toast.success('Sentiment analysis completed!');
+        toast.success(`Sentiment analysis completed for ${symbol}!`);
       },
-      onError: (error) => {
-        toast.error(error.response?.data?.detail || 'Failed to analyze sentiment');
+      onError: (error, symbol) => {
+        setAnalyzingStock(null); // Clear analyzing state
+        toast.error(error.response?.data?.detail || `Failed to analyze sentiment for ${symbol}`);
       }
     }
   );
@@ -192,7 +198,9 @@ const Sentiment = () => {
           ? sentimentData.map((item) => (
               <div 
                 key={item.symbol} 
-                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                className={`bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer ${
+                  analyzingStock === item.symbol ? 'ring-2 ring-blue-300 bg-blue-50' : ''
+                }`}
                 onClick={() => setSelectedStock(selectedStock === item.symbol ? null : item.symbol)}
               >
                 <div className="flex justify-between items-start mb-4">
@@ -233,10 +241,10 @@ const Sentiment = () => {
                         e.stopPropagation();
                         handleAnalyzeSentiment(item.symbol);
                       }}
-                      disabled={analyzeSentimentMutation.isLoading}
+                      disabled={analyzingStock === item.symbol}
                       className="w-full bg-gray-100 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-200 disabled:opacity-50 text-sm"
                     >
-                      {analyzeSentimentMutation.isLoading ? 'Analyzing...' : 'Refresh Analysis'}
+                      {analyzingStock === item.symbol ? 'Analyzing...' : 'Refresh Analysis'}
                     </button>
                   </div>
                 </div>

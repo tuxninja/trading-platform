@@ -73,11 +73,20 @@ export const performanceAPI = {
   getHistory: (days = 30) => api.get(`/api/portfolio-history?days=${days}`).then(res => res.data),
 };
 
-// Stocks API
+// Stocks API (Legacy - for tracked stocks)
 export const stocksAPI = {
   getAll: () => api.get('/api/stocks').then(res => res.data),
   add: (symbol) => api.post('/api/stocks', symbol).then(res => res.data),
   getMarketData: (symbol, days = 30) => api.get(`/api/market-data/${symbol}?days=${days}`).then(res => res.data),
+};
+
+// Watchlist API (New - for user curated monitoring)
+export const watchlistAPI = {
+  getAll: (includeInactive = false) => api.get('/api/watchlist', { params: { include_inactive: includeInactive } }).then(res => res.data),
+  add: (stockData) => api.post('/api/watchlist', stockData).then(res => res.data),
+  remove: (symbol) => api.delete(`/api/watchlist/${symbol}`).then(res => res.data),
+  updatePreferences: (stockId, preferences) => api.put(`/api/watchlist/${stockId}`, preferences).then(res => res.data),
+  getAlerts: (unreadOnly = false) => api.get('/api/watchlist/alerts', { params: { unread_only: unreadOnly } }).then(res => res.data),
 };
 
 // Strategy API

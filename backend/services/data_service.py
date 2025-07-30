@@ -21,11 +21,14 @@ class DataService:
     def get_market_data(self, symbol: str, days: int = 30, db: Session = None) -> Dict:
         """Get market data for a stock symbol with proper caching fallback"""
         try:
+            # Rate limiting to avoid Yahoo Finance blocks
+            self._rate_limit()
+            
             # First, try to get real-time data from Yahoo Finance with enhanced retry
             stock = yf.Ticker(symbol)
             hist = None
             
-            # Try multiple approaches to get current market data
+            # Try multiple approaches to get current market data with delays
             approaches = [
                 ("1d", "1 day history"),
                 ("5d", "5 day history"), 
@@ -35,23 +38,37 @@ class DataService:
                 ("1y", "1 year history")
             ]
             
-            for period, description in approaches:
+            for i, (period, description) in enumerate(approaches):
                 try:
                     self.logger.debug(f"Attempting {description} for {symbol}")
+                    # Add small delay between attempts to avoid rate limiting
+                    if i > 0:
+                        time.sleep(0.5)
                     hist = stock.history(period=period)
                     if not hist.empty:
                         self.logger.info(f"Successfully retrieved {description} for {symbol}")
                         break
                 except Exception as e:
                     self.logger.debug(f"Failed {description} for {symbol}: {str(e)}")
+                    # If we get rate limited, wait longer before next attempt
+                    if "429" in str(e) or "Too Many Requests" in str(e):
+                        self.logger.warning(f"Rate limited for {symbol}, waiting 2 seconds")
+                        time.sleep(2)
                     continue
             
             # If history failed, try getting current info directly
             if hist is None or hist.empty:
                 try:
                     self.logger.info(f"History failed for {symbol}, trying direct info lookup")
+                    # Add rate limiting before info request
+                    time.sleep(1)
                     info = stock.info
-                    current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose')
+                    
+                    # Try multiple price fields in order of preference
+                    current_price = (info.get('currentPrice') or 
+                                   info.get('regularMarketPrice') or 
+                                   info.get('regularMarketPreviousClose') or
+                                   info.get('previousClose'))
                     
                     if current_price and current_price > 0:
                         self.logger.info(f"Retrieved current price {current_price} for {symbol} from info")
@@ -71,6 +88,10 @@ class DataService:
                         }
                 except Exception as e:
                     self.logger.warning(f"Direct info lookup also failed for {symbol}: {str(e)}")
+                    # If it's a rate limit error, wait longer
+                    if "429" in str(e) or "Too Many Requests" in str(e):
+                        self.logger.warning(f"Rate limited on info request for {symbol}")
+                        time.sleep(3)
             
             # If real-time data failed, try to get cached data from database (only if recent)
             if (hist is None or hist.empty) and db is not None:
@@ -78,11 +99,11 @@ class DataService:
                 cached_data = db.query(StockData).filter(StockData.symbol == symbol).order_by(StockData.timestamp.desc()).first()
                 
                 if cached_data and cached_data.close_price > 0:
-                    # Only use cached data if it's less than 4 hours old
+                    # Use cached data if it's less than 24 hours old (expanded due to API rate limiting)
                     from datetime import datetime, timedelta
                     cache_age_hours = (datetime.now() - cached_data.timestamp).total_seconds() / 3600
                     
-                    if cache_age_hours <= 4:
+                    if cache_age_hours <= 24:
                         self.logger.info(f"Using cached data for {symbol} from {cached_data.timestamp} ({cache_age_hours:.1f} hours old)")
                         return {
                             "symbol": symbol,

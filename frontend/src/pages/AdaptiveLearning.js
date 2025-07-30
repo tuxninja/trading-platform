@@ -100,7 +100,12 @@ const AdaptiveLearning = () => {
               <p className="text-2xl font-semibold text-gray-900">
                 {dashboardData?.patterns_discovered_30d || 0}
               </p>
-              <p className="text-xs text-gray-500">Last 30 days</p>
+              <p className="text-xs text-gray-500">
+                Last 30 days
+                {dashboardData?.total_patterns_ever === 0 && (
+                  <span className="text-orange-500 ml-1">• No learning data yet</span>
+                )}
+              </p>
             </div>
           </div>
         </div>
@@ -115,7 +120,12 @@ const AdaptiveLearning = () => {
               <p className="text-2xl font-semibold text-gray-900">
                 {dashboardData?.parameter_adjustments_30d || 0}
               </p>
-              <p className="text-xs text-gray-500">Strategy optimizations</p>
+              <p className="text-xs text-gray-500">
+                Strategy optimizations
+                {!dashboardData?.learning_system_active && (
+                  <span className="text-orange-500 ml-1">• Learning inactive</span>
+                )}
+              </p>
             </div>
           </div>
         </div>
@@ -327,8 +337,21 @@ const AdaptiveLearning = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                      No patterns discovered yet. The system needs more trade data to identify patterns.
+                    <td colSpan="6" className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <AcademicCapIcon className="h-12 w-12 text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No Trade Patterns Yet</h3>
+                        <p className="text-gray-500 max-w-md">
+                          The learning system needs more completed trades to identify successful patterns. 
+                          Once you have more trading history, patterns will automatically appear here.
+                        </p>
+                        {dashboardData?.patterns_discovered_30d > 0 && (
+                          <p className="text-orange-600 text-sm mt-2 font-medium">
+                            Data inconsistency detected: Dashboard shows {dashboardData.patterns_discovered_30d} patterns but none visible here. 
+                            Try refreshing the page or check backend logs.
+                          </p>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}

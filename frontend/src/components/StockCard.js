@@ -37,7 +37,7 @@ const StockCard = ({ stock, selected, onSelect }) => (
       <div className="flex justify-between items-center">
         <span className="text-sm text-gray-500">Current Price</span>
         <span className="text-lg font-semibold text-gray-900">
-          ${stock.current_price}
+          ${parseFloat(stock.current_price || 0).toFixed(2)}
         </span>
       </div>
       <div className="flex justify-between items-center">

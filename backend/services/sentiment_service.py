@@ -98,7 +98,8 @@ class SentimentService:
             response = requests.get(url, params=params, timeout=30)
             
             if response.status_code == 429:
-                raise APIRateLimitError("News API rate limit exceeded")
+                self.logger.warning(f"News API rate limited for {symbol}, switching to alternative news sources")
+                return self._get_alternative_news_sentiment(symbol)
             elif response.status_code == 401:
                 self.logger.error(f"News API authentication failed for {symbol} - API key may be invalid or expired")
                 # Don't switch to alternative, return proper error response
@@ -141,13 +142,15 @@ class SentimentService:
             }
             
         except APIRateLimitError:
-            raise
+            # This should not happen anymore since we handle 429 above, but keep as fallback
+            self.logger.warning(f"APIRateLimitError for {symbol}, switching to alternative news")
+            return self._get_alternative_news_sentiment(symbol)
         except requests.RequestException as e:
-            self.logger.error(f"Network error getting news sentiment for {symbol}: {str(e)}")
-            return {"sentiment": 0.0, "count": 0, "articles": []}
+            self.logger.error(f"Network error getting news sentiment for {symbol}: {str(e)}, switching to alternative")
+            return self._get_alternative_news_sentiment(symbol)
         except Exception as e:
-            self.logger.error(f"Error getting news sentiment for {symbol}: {str(e)}")
-            return {"sentiment": 0.0, "count": 0, "articles": []}
+            self.logger.error(f"Error getting news sentiment for {symbol}: {str(e)}, switching to alternative")
+            return self._get_alternative_news_sentiment(symbol)
     
     def get_social_sentiment(self, symbol: str) -> Dict:
         """Get social media sentiment (simulated for demo)"""
