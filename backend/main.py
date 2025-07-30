@@ -99,11 +99,15 @@ logger.info(f"Configuration loaded successfully")
 async def root():
     return {"message": "Trading Sentiment Analysis API"}
 
+@app.get("/health")
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint for debugging"""
+    """Health check endpoint for load balancers and monitoring"""
     return {
         "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0",
+        "environment": os.getenv("ENVIRONMENT", "development"),
         "google_client_id_configured": bool(auth_service.google_client_id),
         "cors_origins": config.CORS_ORIGINS
     }
