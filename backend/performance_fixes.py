@@ -238,6 +238,178 @@ def get_all_trades_compatible(db: Session) -> List[Dict]:
 
 def clear_performance_caches():
     """Clear all performance caches (useful for testing or forced refresh)"""
-    global _balance_cache, _performance_cache
+    global _balance_cache, _performance_cache, _trading_control_cache
     _balance_cache = {"value": None, "timestamp": None}
     _performance_cache = {"value": None, "timestamp": None}
+    _trading_control_cache = {"value": None, "timestamp": None}
+
+# Trading Control optimizations
+_trading_control_cache = {"value": None, "timestamp": None}
+
+def get_optimized_capital_status(db: Session, trading_service) -> Dict:
+    """Optimized capital allocation status with caching"""
+    now = time.time()
+    
+    # Return cached value if still fresh (cache for 2 minutes for trading control)
+    cache_timeout = 120  # 2 minutes for trading control
+    if (_trading_control_cache["value"] is not None and 
+        _trading_control_cache["timestamp"] is not None and 
+        now - _trading_control_cache["timestamp"] < cache_timeout):
+        return _trading_control_cache["value"]
+    
+    try:
+        from models import Trade
+        
+        # Use optimized balance calculation
+        total_portfolio_value = get_cached_balance(db, trading_service)
+        
+        # Optimized open trades query
+        open_trades = db.query(Trade).filter(Trade.status == "OPEN").all()
+        
+        # Calculate allocated capital quickly
+        cash_allocated_to_trades = sum(trade.total_value for trade in open_trades if trade.trade_type == "BUY")
+        cash_available = total_portfolio_value - cash_allocated_to_trades
+        
+        # Simplified calculations for performance
+        settings_reserve_percent = 20.0  # Hardcoded default
+        settings_max_investment = trading_service.initial_balance * 0.8
+        settings_max_positions = 10
+        
+        cash_reserve_required = total_portfolio_value * (settings_reserve_percent / 100)
+        current_investment = cash_allocated_to_trades
+        investment_capacity = settings_max_investment - current_investment
+        cash_available_for_new_trades = max(0, cash_available - cash_reserve_required)
+        
+        # Position analysis
+        open_positions_count = len(set(trade.symbol for trade in open_trades if trade.trade_type == "BUY"))
+        position_capacity = settings_max_positions - open_positions_count
+        
+        # Calculate largest position percentage
+        position_values = {}
+        for trade in open_trades:
+            if trade.trade_type == "BUY":
+                if trade.symbol not in position_values:
+                    position_values[trade.symbol] = 0
+                position_values[trade.symbol] += trade.total_value
+        
+        largest_position_percent = 0
+        if position_values:
+            largest_position_value = max(position_values.values())
+            largest_position_percent = (largest_position_value / total_portfolio_value) * 100
+        
+        # Simplified sector allocation (avoid complex lookups)
+        tech_symbols = ["AAPL", "GOOGL", "MSFT", "META", "NVDA", "AMD", "INTC"]
+        sector_values = {"Technology": 0, "Other": 0}
+        
+        for symbol, value in position_values.items():
+            sector = "Technology" if symbol in tech_symbols else "Other"
+            sector_values[sector] += value
+        
+        total_invested = sum(sector_values.values())
+        sector_allocations = {}
+        if total_invested > 0:
+            for sector, value in sector_values.items():
+                sector_allocations[sector] = (value / total_invested) * 100
+        
+        result = {
+            "total_portfolio_value": total_portfolio_value,
+            "cash_available": cash_available,
+            "cash_allocated_to_trades": cash_allocated_to_trades,
+            "cash_reserve_required": cash_reserve_required,
+            "cash_available_for_new_trades": cash_available_for_new_trades,
+            "current_investment": current_investment,
+            "investment_capacity": investment_capacity,
+            "max_investment_limit": settings_max_investment,
+            "open_positions_count": open_positions_count,
+            "position_capacity": position_capacity,
+            "max_positions": settings_max_positions,
+            "largest_position_percent": largest_position_percent,
+            "sector_allocations": sector_allocations,
+            "position_details": [
+                {
+                    "symbol": symbol,
+                    "value": value,
+                    "percentage": (value / total_portfolio_value) * 100
+                } for symbol, value in position_values.items()
+            ]
+        }
+        
+        # Cache the result
+        _trading_control_cache["value"] = result
+        _trading_control_cache["timestamp"] = now
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in optimized capital status: {str(e)}")
+        return {
+            "total_portfolio_value": trading_service.current_balance,
+            "cash_available": trading_service.current_balance,
+            "error": "Could not calculate capital status"
+        }
+
+def get_optimized_risk_assessment(db: Session, trading_service) -> Dict:
+    """Optimized risk assessment with simplified calculations"""
+    try:
+        # Get cached capital status
+        capital_status = get_optimized_capital_status(db, trading_service)
+        
+        # Simple risk score calculation
+        risk_score = 0
+        warnings = []
+        recommendations = []
+        
+        # Position concentration risk
+        largest_position_percent = capital_status.get("largest_position_percent", 0)
+        if largest_position_percent > 10:
+            risk_score += 2
+            warnings.append(f"Largest position is {largest_position_percent:.1f}% (recommended max: 10%)")
+            recommendations.append("Consider reducing position size of largest holding")
+        
+        # Number of positions risk
+        open_positions_count = capital_status.get("open_positions_count", 0)
+        if open_positions_count > 15:
+            risk_score += 1
+            warnings.append(f"High number of positions ({open_positions_count})")
+            recommendations.append("Consider consolidating positions")
+        elif open_positions_count < 3:
+            risk_score += 1
+            warnings.append("Low diversification with few positions")
+            recommendations.append("Consider adding more positions for diversification")
+        
+        # Cash allocation risk
+        cash_available_percent = (capital_status.get("cash_available", 0) / capital_status.get("total_portfolio_value", 1)) * 100
+        if cash_available_percent < 10:
+            risk_score += 1
+            warnings.append(f"Low cash reserves ({cash_available_percent:.1f}%)")
+            recommendations.append("Consider maintaining higher cash reserves")
+        
+        # Determine risk level
+        if risk_score <= 2:
+            risk_level = "LOW"
+        elif risk_score <= 4:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "HIGH"
+        
+        return {
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+            "warnings": warnings,
+            "recommendations": recommendations,
+            "capital_utilization": {
+                "total_invested_percent": (capital_status.get("current_investment", 0) / capital_status.get("total_portfolio_value", 1)) * 100,
+                "cash_percent": cash_available_percent,
+                "position_count": open_positions_count
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in optimized risk assessment: {str(e)}")
+        return {
+            "risk_score": 0,
+            "risk_level": "UNKNOWN",
+            "warnings": ["Could not assess risk"],
+            "recommendations": [],
+            "error": str(e)
+        }
