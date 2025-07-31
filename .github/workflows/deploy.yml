@@ -438,19 +438,59 @@ jobs:
             -o ServerAliveInterval=60 \
             -o BatchMode=yes \
             $USER@$HOST << EOF
-          set -e
-          
           echo "📄 Moving deployment files from home to /opt/trading/..."
+          
+          # Debug: Show what exists in /opt/trading/
+          echo "🔍 Current contents of /opt/trading/:"
+          ls -la /opt/trading/ || echo "Directory listing failed"
+          
+          # Clean up any conflicting files/directories first - be more aggressive
+          echo "🧹 Cleaning up any existing conflicting files..."
+          cd /opt/trading
+          
+          # Check what nginx.conf is
+          if [ -e nginx.conf ]; then
+            echo "nginx.conf exists - checking type:"
+            ls -la nginx.conf
+            file nginx.conf 2>/dev/null || echo "file command failed"
+            if [ -d nginx.conf ]; then
+              echo "nginx.conf is a directory - removing recursively"
+              sudo rm -rf nginx.conf
+            elif [ -f nginx.conf ]; then
+              echo "nginx.conf is a file - removing"
+              sudo rm -f nginx.conf
+            else
+              echo "nginx.conf is something else - forcing removal"
+              sudo rm -rf nginx.conf
+            fi
+          fi
+          
+          # Clean up other files
+          sudo rm -rf nginx 2>/dev/null || true
+          sudo rm -f docker-compose.prod.yml ecr_token.txt update.sh 2>/dev/null || true
+          
+          # Verify cleanup
+          echo "🔍 After cleanup:"
+          ls -la /opt/trading/ | head -10
+          
           # Move files from home directory to /opt/trading/ with proper permissions
-          sudo cp ~/docker-compose.prod.yml /opt/trading/
-          sudo cp ~/nginx.conf /opt/trading/
-          sudo cp ~/ecr_token.txt /opt/trading/
-          sudo cp ~/update.sh /opt/trading/
+          echo "📄 Copying files..."
+          sudo cp ~/docker-compose.prod.yml /opt/trading/ && echo "✅ docker-compose.prod.yml copied"
+          sudo cp ~/nginx.conf /opt/trading/ && echo "✅ nginx.conf copied"
+          sudo cp ~/ecr_token.txt /opt/trading/ && echo "✅ ecr_token.txt copied"
+          sudo cp ~/update.sh /opt/trading/ && echo "✅ update.sh copied"
           sudo chown -R ec2-user:ec2-user /opt/trading/
           sudo chmod +x /opt/trading/update.sh
           
+          # Verify files were copied correctly
+          echo "✅ Verifying files in /opt/trading/:"
+          ls -la /opt/trading/ | grep -E "(docker-compose|nginx\.conf|ecr_token|update\.sh)"
+          
           # Clean up files from home directory
           rm -f ~/docker-compose.prod.yml ~/nginx.conf ~/ecr_token.txt ~/update.sh
+          
+          # Re-enable strict error handling for the rest of the script
+          set -e
           
           cd /opt/trading
           
