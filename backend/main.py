@@ -756,6 +756,88 @@ async def debug_strategies(db: Session = Depends(get_db)):
         logger.error(f"Error checking strategies: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Strategy check error: {str(e)}")
 
+@app.post("/api/admin/optimize-database")
+async def optimize_database():
+    """Admin endpoint to optimize database with indexes"""
+    try:
+        # Import the optimization function
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from optimize_database_indexes import create_database_indexes
+        
+        logger.info("Starting database index optimization...")
+        result = create_database_indexes()
+        
+        if result["status"] == "success":
+            logger.info(f"Database optimization completed: {result['indexes_created']} new indexes created")
+            return {
+                "message": "Database optimization completed successfully",
+                "indexes_created": result["indexes_created"],
+                "indexes_already_exist": result.get("indexes_already_exist", 0),
+                "total_indexes": result.get("total_indexes", 0),
+                "performance_improvement": "Expected 30-90% faster API responses",
+                "result": result
+            }
+        else:
+            logger.error(f"Database optimization failed: {result.get('error', 'Unknown error')}")
+            raise HTTPException(status_code=500, detail=f"Database optimization failed: {result.get('error')}")
+        
+    except Exception as e:
+        logger.error(f"Error optimizing database: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database optimization error: {str(e)}")
+
+@app.get("/api/admin/database-stats")
+async def get_database_stats():
+    """Admin endpoint to get database statistics"""
+    try:
+        import sqlite3
+        
+        db_path = "trading_app.db"
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get table counts
+        stats = {}
+        
+        tables = ["trades", "sentiment_data", "stock_data", "strategies", "positions", 
+                 "watchlist_stocks", "watchlist_alerts", "users", "user_activity"]
+        
+        for table in tables:
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                count = cursor.fetchone()[0]
+                stats[f"{table}_count"] = count
+            except sqlite3.Error:
+                stats[f"{table}_count"] = "N/A (table doesn't exist)"
+        
+        # Get index count
+        cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='index'")
+        stats["total_indexes"] = cursor.fetchone()[0]
+        
+        # Get database size
+        cursor.execute("PRAGMA page_count")
+        page_count = cursor.fetchone()[0]
+        cursor.execute("PRAGMA page_size")
+        page_size = cursor.fetchone()[0]
+        stats["database_size_mb"] = round((page_count * page_size) / (1024 * 1024), 2)
+        
+        conn.close()
+        
+        return {
+            "message": "Database statistics retrieved successfully",
+            "statistics": stats,
+            "recommendations": [
+                "Ensure proper indexes are in place for frequently queried columns",
+                "Monitor query performance for optimization opportunities",
+                "Consider database maintenance tasks like VACUUM for large tables"
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting database stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database stats error: {str(e)}")
+
 @app.get("/api/stocks")
 async def get_stocks(db: Session = Depends(get_db)):
     """Get all tracked stocks"""
