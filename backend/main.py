@@ -865,6 +865,78 @@ async def restart_scheduler():
         logger.error(f"Error restarting scheduler: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Scheduler restart error: {str(e)}")
 
+@app.post("/api/admin/run-database-migration")
+async def run_database_migration():
+    """Run database migration to create watchlist tables"""
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from add_monitoring_fields_migration import run_migration
+        
+        logger.info("Running database migration for watchlist tables...")
+        result = run_migration()
+        
+        if result["status"] == "success":
+            logger.info("Database migration completed successfully")
+            return {
+                "message": "Database migration completed successfully",
+                "migrations_applied": result["migrations_applied"],
+                "result": result
+            }
+        else:
+            logger.error(f"Database migration failed: {result.get('error')}")
+            raise HTTPException(status_code=500, detail=f"Migration failed: {result.get('error')}")
+        
+    except Exception as e:
+        logger.error(f"Error running database migration: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Migration error: {str(e)}")
+
+@app.get("/api/admin/check-database-tables")
+async def check_database_tables(db: Session = Depends(get_db)):
+    """Check if required database tables exist"""
+    try:
+        import sqlite3
+        
+        db_path = "trading_app.db"
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Check for watchlist tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%watchlist%'")
+        watchlist_tables = [row[0] for row in cursor.fetchall()]
+        
+        # Check for watchlist_stocks columns if table exists
+        watchlist_stocks_columns = []
+        if "watchlist_stocks" in watchlist_tables:
+            cursor.execute("PRAGMA table_info(watchlist_stocks)")
+            watchlist_stocks_columns = [row[1] for row in cursor.fetchall()]
+        
+        # Check for watchlist_alerts columns if table exists
+        watchlist_alerts_columns = []
+        if "watchlist_alerts" in watchlist_tables:
+            cursor.execute("PRAGMA table_info(watchlist_alerts)")
+            watchlist_alerts_columns = [row[1] for row in cursor.fetchall()]
+            
+        conn.close()
+        
+        return {
+            "database_path": db_path,
+            "watchlist_tables": watchlist_tables,
+            "watchlist_stocks_columns": watchlist_stocks_columns,
+            "watchlist_alerts_columns": watchlist_alerts_columns,
+            "missing_fields": {
+                "risk_tolerance": "risk_tolerance" not in watchlist_stocks_columns,
+                "last_monitored": "last_monitored" not in watchlist_stocks_columns,
+                "reference_price": "reference_price" not in watchlist_stocks_columns,
+                "is_active": "is_active" not in watchlist_alerts_columns
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking database tables: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database check error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
@@ -1032,7 +1104,9 @@ async def add_stock_to_watchlist(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error adding to watchlist: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Watchlist add error: {str(e)}")
 
 @app.delete("/api/watchlist/{symbol}")
 async def remove_stock_from_watchlist(
