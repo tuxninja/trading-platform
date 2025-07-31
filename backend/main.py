@@ -937,6 +937,47 @@ async def check_database_tables(db: Session = Depends(get_db)):
         logger.error(f"Error checking database tables: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database check error: {str(e)}")
 
+@app.post("/api/admin/create-database-tables")
+async def create_database_tables():
+    """Force create all database tables including watchlist tables"""
+    try:
+        from database import engine, Base
+        from models import WatchlistStock, WatchlistAlert  # Import to register with Base
+        
+        logger.info("Creating all database tables...")
+        
+        # This will create all tables defined in models.py
+        Base.metadata.create_all(bind=engine)
+        
+        logger.info("Database tables created successfully")
+        
+        # Check what was created
+        import sqlite3
+        db_path = "trading_app.db"
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        all_tables = [row[0] for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%watchlist%'")
+        watchlist_tables = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return {
+            "message": "Database tables created successfully",
+            "all_tables": all_tables,
+            "watchlist_tables": watchlist_tables,
+            "success": len(watchlist_tables) > 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating database tables: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Database creation error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
