@@ -139,10 +139,14 @@ class WatchlistService:
             self.logger.error(f"Error removing {symbol} from watchlist: {str(e)}")
             raise TradingAppException(f"Failed to remove {symbol} from watchlist: {str(e)}")
     
-    def get_watchlist(self, db: Session, user_email: str, include_inactive: bool = False) -> List[Dict]:
+    def get_watchlist(self, db: Session, user_email: str = None, include_inactive: bool = False) -> List[Dict]:
         """Get user's watchlist with current market data and performance"""
         try:
-            query = db.query(WatchlistStock).filter(WatchlistStock.added_by == user_email)
+            query = db.query(WatchlistStock)
+            
+            # Only filter by user if user_email is provided
+            if user_email:
+                query = query.filter(WatchlistStock.added_by == user_email)
             
             if not include_inactive:
                 query = query.filter(WatchlistStock.is_active == True)

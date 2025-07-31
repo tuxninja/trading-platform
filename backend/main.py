@@ -797,6 +797,39 @@ async def trigger_scheduler_manually(db: Session = Depends(get_db)):
         logger.error(f"Error triggering scheduler: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Scheduler trigger error: {str(e)}")
 
+@app.get("/api/admin/scheduler-status")
+async def get_scheduler_status():
+    """Get current scheduler status and upcoming jobs"""
+    try:
+        from services.scheduler_service import scheduler_service
+        
+        status = {
+            "is_running": scheduler_service.is_running,
+            "current_time": datetime.now().isoformat(),
+            "jobs": [],
+            "market_hours": "9 AM - 4 PM EST, Mon-Fri",
+            "next_executions": {}
+        }
+        
+        if scheduler_service.is_running:
+            for job in scheduler_service.scheduler.get_jobs():
+                job_info = {
+                    "id": job.id,
+                    "name": str(job.func),
+                    "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+                    "trigger": str(job.trigger)
+                }
+                status["jobs"].append(job_info)
+                
+                if job.next_run_time:
+                    status["next_executions"][job.id] = job.next_run_time.isoformat()
+        
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting scheduler status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Scheduler status error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
@@ -917,32 +950,24 @@ async def get_market_data(symbol: str, days: int = 30, db: Session = Depends(get
 async def get_watchlist(include_inactive: bool = False, db: Session = Depends(get_db)):
     """Get user's watchlist with current market data and performance"""
     try:
-        # For now, use default admin user email since frontend auth may not be working
-        user_email = "tuxninja@gmail.com"
-        
-        # Check if watchlist table exists and has data
-        try:
-            watchlist = watchlist_service.get_watchlist(db, user_email, include_inactive)
-            return watchlist
-        except Exception as e:
-            logger.warning(f"Watchlist service error: {str(e)}")
-            # Return empty watchlist if table doesn't exist or has issues
-            return []
+        # Get all watchlist stocks regardless of user for now
+        watchlist = watchlist_service.get_watchlist(db, user_email=None, include_inactive=include_inactive)
+        return watchlist
             
     except Exception as e:
-        logger.error(f"Unexpected watchlist error: {str(e)}")
+        logger.error(f"Watchlist error: {str(e)}")
         # Return empty watchlist instead of 500 error
         return []
 
 @app.post("/api/watchlist")
 async def add_stock_to_watchlist(
     stock_data: dict = Body(...), 
-    current_user: dict = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
     """Add a stock to user's watchlist with monitoring preferences"""
     try:
-        user_email = current_user.get("email")
+        # Use default admin user for now
+        user_email = "tuxninja@gmail.com"
         symbol = stock_data.get("symbol", "").upper().strip()
         
         if not symbol or not symbol.isalpha() or len(symbol) > 10:
