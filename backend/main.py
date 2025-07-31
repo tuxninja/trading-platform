@@ -807,7 +807,7 @@ async def get_scheduler_status():
             "is_running": scheduler_service.is_running,
             "current_time": datetime.now().isoformat(),
             "jobs": [],
-            "market_hours": "9 AM - 4 PM EST, Mon-Fri",
+            "market_hours": "9:30 AM - 4:00 PM EST (2:30 PM - 9:00 PM UTC), Mon-Fri",
             "next_executions": {}
         }
         

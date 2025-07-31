@@ -59,9 +59,10 @@ class SchedulerService:
         """Setup default scheduled tasks."""
         try:
             # Position monitoring (every 15 minutes during market hours)
+            # US market: 9:30 AM - 4:00 PM EST = 2:30 PM - 9:00 PM UTC
             self.scheduler.add_job(
                 self._check_positions,
-                CronTrigger(minute="*/15", hour="9-16", day_of_week="mon-fri"),
+                CronTrigger(minute="*/15", hour="14-21", day_of_week="mon-fri"),
                 id="position_monitoring",
                 replace_existing=True,
                 max_instances=1
@@ -70,7 +71,7 @@ class SchedulerService:
             # Strategy execution (every 30 minutes during market hours)
             self.scheduler.add_job(
                 self._run_all_strategies,
-                CronTrigger(minute="*/30", hour="9-16", day_of_week="mon-fri"),
+                CronTrigger(minute="*/30", hour="14-21", day_of_week="mon-fri"),
                 id="strategy_execution",
                 replace_existing=True,
                 max_instances=1
@@ -79,16 +80,16 @@ class SchedulerService:
             # Market scanning (every hour during market hours)
             self.scheduler.add_job(
                 self._market_scan,
-                CronTrigger(minute="0", hour="9-16", day_of_week="mon-fri"),
+                CronTrigger(minute="0", hour="14-21", day_of_week="mon-fri"),
                 id="market_scanning",
                 replace_existing=True,
                 max_instances=1
             )
             
-            # Daily cleanup (after market close)
+            # Daily cleanup (after market close - 5 PM EST = 10 PM UTC)
             self.scheduler.add_job(
                 self._daily_cleanup,
-                CronTrigger(hour="17", minute="0", day_of_week="mon-fri"),
+                CronTrigger(hour="22", minute="0", day_of_week="mon-fri"),
                 id="daily_cleanup",
                 replace_existing=True,
                 max_instances=1
@@ -124,7 +125,7 @@ class SchedulerService:
             # Continuous watchlist monitoring (every 10 minutes during market hours)
             self.scheduler.add_job(
                 self._run_continuous_monitoring,
-                CronTrigger(minute="*/10", hour="9-16", day_of_week="mon-fri"),
+                CronTrigger(minute="*/10", hour="14-21", day_of_week="mon-fri"),
                 id="continuous_monitoring",
                 replace_existing=True,
                 max_instances=1
