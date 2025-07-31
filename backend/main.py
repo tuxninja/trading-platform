@@ -34,6 +34,12 @@ from config import config, setup_logging
 from exceptions import TradingAppException
 from auth import auth_service, get_current_user, optional_auth
 from admin_api import admin_router
+from performance_fixes import (
+    get_optimized_performance_metrics,
+    get_optimized_portfolio_history,
+    get_paginated_trades,
+    clear_performance_caches
+)
 
 # Setup logging
 logger = setup_logging()
@@ -202,10 +208,11 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     return {"user": current_user}
 
 @app.get("/api/trades")
-async def get_trades(db: Session = Depends(get_db)):
-    """Get all paper trades"""
+async def get_trades(page: int = 1, limit: int = 50, db: Session = Depends(get_db)):
+    """Get paginated paper trades (optimized for performance)"""
     try:
-        return trading_service.get_all_trades(db)
+        # Use optimized pagination to avoid loading all trades
+        return get_paginated_trades(db, page, min(limit, 100))  # Cap at 100
     except Exception as e:
         logger.error(f"Error getting trades: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -622,14 +629,20 @@ async def analyze_sentiment(symbol: str = Body(..., embed=True), db: Session = D
 
 @app.get("/api/performance")
 async def get_performance(db: Session = Depends(get_db)):
-    """Get trading performance metrics"""
-    return trading_service.get_performance_metrics(db)
+    """Get trading performance metrics (optimized for performance)"""
+    try:
+        # Use optimized performance calculation with caching
+        return get_optimized_performance_metrics(db, trading_service)
+    except Exception as e:
+        logger.error(f"Error getting performance metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail="Performance calculation error")
 
 @app.get("/api/portfolio-history")
 async def get_portfolio_history(days: int = 30, db: Session = Depends(get_db)):
-    """Get portfolio value history for charting"""
+    """Get portfolio value history for charting (optimized for performance)"""
     try:
-        history = trading_service.get_portfolio_history(db, days)
+        # Use optimized portfolio history calculation
+        history = get_optimized_portfolio_history(db, trading_service, min(days, 365))  # Cap at 1 year
         return history
     except Exception as e:
         logger.error(f"Error getting portfolio history: {str(e)}")
@@ -637,15 +650,27 @@ async def get_portfolio_history(days: int = 30, db: Session = Depends(get_db)):
 
 @app.post("/api/recalculate-balance")
 async def recalculate_balance(db: Session = Depends(get_db)):
-    """Debug endpoint to force balance recalculation"""
+    """Debug endpoint to force balance recalculation and clear caches"""
     try:
+        # Clear performance caches to force fresh calculation
+        clear_performance_caches()
         trading_service.recalculate_current_balance(db)
         return {
-            "message": "Balance recalculated",
+            "message": "Balance recalculated and caches cleared",
             "current_balance": trading_service.current_balance
         }
     except Exception as e:
         logger.error(f"Error recalculating balance: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/clear-cache")
+async def clear_cache():
+    """Clear performance caches for fresh data"""
+    try:
+        clear_performance_caches()
+        return {"message": "Performance caches cleared"}
+    except Exception as e:
+        logger.error(f"Error clearing cache: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/stocks")
