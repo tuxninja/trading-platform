@@ -830,6 +830,41 @@ async def get_scheduler_status():
         logger.error(f"Error getting scheduler status: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Scheduler status error: {str(e)}")
 
+@app.post("/api/admin/restart-scheduler")
+async def restart_scheduler():
+    """Restart the scheduler to pick up new timezone settings"""
+    try:
+        from services.scheduler_service import scheduler_service
+        
+        logger.info("Restarting scheduler with updated timezone settings...")
+        
+        # Stop the scheduler
+        await scheduler_service.stop()
+        
+        # Start it again (will pick up new timezone settings)
+        await scheduler_service.start()
+        
+        # Get updated status
+        status = {
+            "message": "Scheduler restarted successfully",
+            "is_running": scheduler_service.is_running,
+            "current_time": datetime.now().isoformat(),
+            "jobs_count": len(scheduler_service.scheduler.get_jobs()) if scheduler_service.is_running else 0,
+            "next_strategy_execution": None
+        }
+        
+        if scheduler_service.is_running:
+            for job in scheduler_service.scheduler.get_jobs():
+                if job.id == "strategy_execution":
+                    status["next_strategy_execution"] = job.next_run_time.isoformat() if job.next_run_time else None
+                    break
+        
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error restarting scheduler: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Scheduler restart error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
