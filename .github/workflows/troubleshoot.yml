@@ -42,8 +42,18 @@ jobs:
           exit 1
         fi
         
-        # Run comprehensive troubleshooting
+        # Transfer and run the comprehensive troubleshooting script
+        echo "📄 Transferring troubleshooting script..."
+        scp -i private_key.pem -o StrictHostKeyChecking=no troubleshoot_production.sh $USER@$HOST:~/
+        
+        echo "🚀 Running comprehensive production diagnostics..."
         ssh -i private_key.pem -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
+          # Run the comprehensive troubleshooting script
+          chmod +x ~/troubleshoot_production.sh
+          ~/troubleshoot_production.sh
+          
+          echo ""
+          echo "🔧 Additional Quick Diagnostics:"
           echo "🔍 Trading Platform Troubleshooting Report"
           echo "========================================="
           
