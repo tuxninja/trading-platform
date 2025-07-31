@@ -683,6 +683,79 @@ async def clear_cache():
         logger.error(f"Error clearing cache: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.post("/api/debug/run-strategies")
+async def debug_run_strategies(db: Session = Depends(get_db)):
+    """Debug endpoint to manually trigger strategy execution"""
+    try:
+        # Check if we have active strategies
+        from models import Strategy
+        active_strategies = db.query(Strategy).filter(Strategy.is_active == True).all()
+        
+        if not active_strategies:
+            return {
+                "message": "No active strategies found",
+                "active_strategies": 0,
+                "suggestion": "Create active strategies in the database first"
+            }
+        
+        # Try to run strategies using the strategy service
+        try:
+            from services.strategy_service import StrategyService
+            strategy_service = StrategyService()
+            result = strategy_service.run_all_active_strategies(db)
+            
+            return {
+                "message": "Strategy execution attempted",
+                "active_strategies": len(active_strategies),
+                "strategy_names": [s.name for s in active_strategies],
+                "execution_result": result
+            }
+            
+        except Exception as strategy_error:
+            logger.error(f"Strategy execution error: {str(strategy_error)}")
+            return {
+                "message": "Strategy execution failed",
+                "active_strategies": len(active_strategies),
+                "strategy_names": [s.name for s in active_strategies],
+                "error": str(strategy_error)
+            }
+        
+    except Exception as e:
+        logger.error(f"Error in debug run strategies: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Debug strategy execution error: {str(e)}")
+
+@app.get("/api/debug/strategies")
+async def debug_strategies(db: Session = Depends(get_db)):
+    """Debug endpoint to check active strategies"""
+    try:
+        from models import Strategy, Trade
+        from datetime import datetime, timedelta
+        
+        active_strategies = db.query(Strategy).filter(Strategy.is_active == True).all()
+        
+        # Check recent trades
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        recent_trades = db.query(Trade).filter(Trade.timestamp >= today).count()
+        
+        return {
+            "active_strategies": len(active_strategies),
+            "strategies": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "type": s.strategy_type,
+                    "is_active": s.is_active,
+                    "parameters": s.parameters
+                } for s in active_strategies
+            ],
+            "trades_today": recent_trades,
+            "message": "Active strategies found" if active_strategies else "No active strategies - this explains why no new trades"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking strategies: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Strategy check error: {str(e)}")
+
 @app.get("/api/stocks")
 async def get_stocks(db: Session = Depends(get_db)):
     """Get all tracked stocks"""
