@@ -187,26 +187,32 @@ class WatchlistService:
                     "sentiment_score": latest_sentiment.overall_sentiment if latest_sentiment else None,
                     "sentiment_updated": latest_sentiment.timestamp if latest_sentiment else None,
                     
-                    # User preferences
-                    "is_active": stock.is_active,
-                    "sentiment_monitoring": stock.sentiment_monitoring,
-                    "auto_trading": stock.auto_trading,
-                    "priority_level": stock.priority_level,
-                    "position_size_limit": stock.position_size_limit,
-                    "min_confidence_threshold": stock.min_confidence_threshold,
+                    # User preferences - with safe attribute access
+                    "is_active": getattr(stock, 'is_active', True),
+                    "sentiment_monitoring": getattr(stock, 'sentiment_monitoring', True),
+                    "auto_trading": getattr(stock, 'auto_trading', True),
+                    "priority_level": getattr(stock, 'priority_level', 'NORMAL'),
+                    "position_size_limit": getattr(stock, 'position_size_limit', 5000.0),
+                    "min_confidence_threshold": getattr(stock, 'min_confidence_threshold', 0.3),
                     
-                    # Performance metrics
-                    "total_trades": stock.total_trades,
-                    "successful_trades": stock.successful_trades,
+                    # Performance metrics - with safe attribute access
+                    "total_trades": getattr(stock, 'total_trades', 0),
+                    "successful_trades": getattr(stock, 'successful_trades', 0),
                     "win_rate": win_rate,
-                    "total_pnl": stock.total_pnl,
+                    "total_pnl": getattr(stock, 'total_pnl', 0.0),
                     "recent_alerts": recent_alerts,
                     
-                    # Metadata
-                    "added_at": stock.created_at,
-                    "updated_at": stock.updated_at,
-                    "last_sentiment_check": stock.last_sentiment_check,
-                    "last_trade_signal": stock.last_trade_signal
+                    # Metadata - with safe attribute access
+                    "added_at": getattr(stock, 'created_at', datetime.now()),
+                    "updated_at": getattr(stock, 'updated_at', datetime.now()),
+                    "last_sentiment_check": getattr(stock, 'last_sentiment_check', None),
+                    "last_trade_signal": getattr(stock, 'last_trade_signal', None),
+                    
+                    # Monitoring fields - with safe attribute access for new fields
+                    "last_monitored": getattr(stock, 'last_monitored', None),
+                    "reference_price": getattr(stock, 'reference_price', None),
+                    "reference_price_updated": getattr(stock, 'reference_price_updated', None),
+                    "risk_tolerance": getattr(stock, 'risk_tolerance', 'medium')
                 }
                 
                 result.append(stock_data)
