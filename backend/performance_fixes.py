@@ -193,7 +193,8 @@ def get_paginated_trades(db: Session, page: int = 1, limit: int = 50) -> Dict:
                     "total_value": t.total_value,
                     "status": t.status,
                     "timestamp": t.timestamp.isoformat() if t.timestamp else None,
-                    "profit_loss": t.profit_loss
+                    "profit_loss": t.profit_loss,
+                    "strategy": getattr(t, 'strategy', 'MANUAL')  # Add missing strategy field
                 } for t in trades
             ],
             "pagination": {
@@ -207,6 +208,33 @@ def get_paginated_trades(db: Session, page: int = 1, limit: int = 50) -> Dict:
     except Exception as e:
         logger.error(f"Error getting paginated trades: {str(e)}")
         return {"trades": [], "pagination": {"page": 1, "limit": limit, "total": 0, "pages": 0}}
+
+def get_all_trades_compatible(db: Session) -> List[Dict]:
+    """Get all trades in frontend-compatible format (direct array)"""
+    try:
+        from models import Trade
+        
+        # For compatibility, load all trades but limit to recent 200 to avoid timeout
+        trades = db.query(Trade).order_by(desc(Trade.timestamp)).limit(200).all()
+        
+        return [
+            {
+                "id": t.id,
+                "symbol": t.symbol,
+                "trade_type": t.trade_type,
+                "quantity": t.quantity,
+                "price": t.price,
+                "total_value": t.total_value,
+                "status": t.status,
+                "timestamp": t.timestamp.isoformat() if t.timestamp else None,
+                "profit_loss": t.profit_loss,
+                "strategy": getattr(t, 'strategy', 'MANUAL')
+            } for t in trades
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error getting compatible trades: {str(e)}")
+        return []
 
 def clear_performance_caches():
     """Clear all performance caches (useful for testing or forced refresh)"""

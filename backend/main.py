@@ -38,6 +38,7 @@ from performance_fixes import (
     get_optimized_performance_metrics,
     get_optimized_portfolio_history,
     get_paginated_trades,
+    get_all_trades_compatible,
     clear_performance_caches
 )
 
@@ -208,11 +209,18 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     return {"user": current_user}
 
 @app.get("/api/trades")
-async def get_trades(page: int = 1, limit: int = 50, db: Session = Depends(get_db)):
-    """Get paginated paper trades (optimized for performance)"""
+async def get_trades(page: Optional[int] = None, limit: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get paper trades - supports both paginated and legacy formats"""
     try:
-        # Use optimized pagination to avoid loading all trades
-        return get_paginated_trades(db, page, min(limit, 100))  # Cap at 100
+        # If pagination parameters are provided, return paginated format
+        if page is not None or limit is not None:
+            page = page or 1
+            limit = min(limit or 50, 100)  # Cap at 100
+            return get_paginated_trades(db, page, limit)
+        
+        # Otherwise, return frontend-compatible format (direct array)
+        # Limited to recent 200 trades to avoid timeout but maintain compatibility
+        return get_all_trades_compatible(db)
     except Exception as e:
         logger.error(f"Error getting trades: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
