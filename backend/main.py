@@ -1154,6 +1154,70 @@ async def final_emergency_fix_endpoint():
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Final emergency fix error: {str(e)}")
 
+@app.get("/api/admin/production-environment-debug")
+async def production_environment_debug():
+    """Debug production environment to find database location"""
+    try:
+        import os
+        import glob
+        
+        debug_info = {
+            "current_directory": os.getcwd(),
+            "environment_variables": {
+                k: v for k, v in os.environ.items() 
+                if any(keyword in k.lower() for keyword in ['db', 'database', 'sql', 'trading', 'path'])
+            },
+            "current_dir_files": [],
+            "database_files_found": [],
+            "parent_dir_files": [],
+            "root_level_dirs": []
+        }
+        
+        # List current directory
+        try:
+            debug_info["current_dir_files"] = os.listdir('.')
+        except:
+            debug_info["current_dir_files"] = ["ERROR: Cannot list current directory"]
+        
+        # Find all .db files recursively
+        try:
+            for pattern in ['./*.db', './**/*.db', '../*.db', '../**/*.db', '/opt/**/*.db']:
+                matches = glob.glob(pattern, recursive=True)
+                debug_info["database_files_found"].extend(matches)
+        except:
+            pass
+        
+        # Check parent directory
+        try:
+            debug_info["parent_dir_files"] = os.listdir('..')
+        except:
+            debug_info["parent_dir_files"] = ["ERROR: Cannot list parent directory"]
+        
+        # Check common root directories
+        for root_dir in ['/', '/opt', '/app', '/usr/src/app']:
+            try:
+                if os.path.exists(root_dir):
+                    contents = os.listdir(root_dir)
+                    debug_info["root_level_dirs"].append({
+                        "path": root_dir,
+                        "contents": contents[:10]  # First 10 items only
+                    })
+            except:
+                pass
+        
+        # Check if the database URL from config gives us any clues
+        try:
+            from config import config
+            debug_info["database_url_from_config"] = config.DATABASE_URL
+        except:
+            debug_info["database_url_from_config"] = "ERROR: Cannot load config"
+        
+        return debug_info
+        
+    except Exception as e:
+        logger.error(f"Error in production debug: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Debug error: {str(e)}")
+
 @app.get("/api/admin/check-watchlist-data")
 async def check_watchlist_data():
     """Check actual data in watchlist tables"""
