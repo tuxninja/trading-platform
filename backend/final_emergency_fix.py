@@ -11,13 +11,29 @@ from datetime import datetime, timedelta
 def final_emergency_fix():
     """Final fix targeting the correct backend database"""
     print("🚨 FINAL EMERGENCY FIX - TARGETING CORRECT DATABASE")
+    print(f"📂 Current working directory: {os.getcwd()}")
+    print(f"📋 Files in current directory: {os.listdir('.')}")
+    print(f"📋 Database files found: {[f for f in os.listdir('.') if f.endswith('.db')]}")
     
     # Use the BACKEND database that the API actually uses
-    db_path = "./trading_app.db"  # When running from backend folder
+    # Try multiple possible paths for production
+    possible_paths = [
+        "./trading_app.db",  # When running from backend folder
+        "/opt/trading/trading_app.db",  # Production path
+        "../trading_app.db",  # If running from root
+        "./backend/trading_app.db"  # If running from root
+    ]
     
-    if not os.path.exists(db_path):
-        print(f"❌ Backend database not found at {db_path}")
-        return {"error": "Backend database not found"}
+    db_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            print(f"✅ Found database at: {path}")
+            db_path = path
+            break
+    
+    if not db_path:
+        print(f"❌ Database not found in any of: {possible_paths}")
+        return {"error": f"Database not found in any of: {possible_paths}"}
     
     print(f"✅ Using correct backend database: {db_path}")
     
