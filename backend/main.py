@@ -1285,18 +1285,14 @@ async def emergency_watchlist_fix(db: Session = Depends(get_db)):
         current_count = db.query(WatchlistStock).count()
         
         if current_count == 0:
-            # Add just one stock first to test
+            # Add just one stock first to test - only include columns that exist in DB
             stock = WatchlistStock(
                 symbol="PYPL",
                 company_name="PayPal Holdings Inc",
                 sector="Financial Services",
                 added_by="tuxninja@gmail.com",
                 added_reason="Emergency fix test",
-                is_active=True,
-                sentiment_monitoring=True,
-                auto_trading=True,
-                position_size_limit=5000.0,
-                min_confidence_threshold=0.3
+                is_active=True
             )
             db.add(stock)
             db.commit()
