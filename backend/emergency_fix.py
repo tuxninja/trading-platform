@@ -11,9 +11,27 @@ def emergency_fix_all():
     """Emergency fix for all issues"""
     print("🚨 EMERGENCY FIX STARTING...")
     
-    db_path = "trading_app.db"
+    # Check multiple possible database paths
+    possible_paths = ["trading_app.db", "/opt/trading/trading_app.db", "./trading_app.db"]
+    db_path = None
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            print(f"Found database at: {path}")
+            db_path = path
+            break
+    
+    if not db_path:
+        print("No database found, using default path...")
+        db_path = "trading_app.db"
+    
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+    
+    # Check what tables actually exist
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    existing_tables = [row[0] for row in cursor.fetchall()]
+    print(f"Existing tables: {existing_tables}")
     
     # 1. CREATE STRATEGIES TABLE IF MISSING
     print("1. Creating strategies table...")
