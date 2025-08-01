@@ -1387,6 +1387,104 @@ async def fix_database_permissions():
     except Exception as e:
         return {"error": str(e), "success": False}
 
+@app.get("/api/initialize-database")
+async def initialize_database():
+    """Initialize database by creating tables and adding initial data"""
+    try:
+        from datetime import datetime
+        from sqlalchemy import text
+        import os
+        
+        # Get current working directory and database info
+        cwd = os.getcwd()
+        from config import config
+        db_url = config.DATABASE_URL
+        
+        results = {
+            "current_directory": cwd,
+            "database_url": db_url,
+            "actions_taken": [],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Try to create all tables using SQLAlchemy
+        try:
+            from database import engine, Base
+            Base.metadata.create_all(bind=engine)
+            results["actions_taken"].append("✅ Created all database tables using SQLAlchemy")
+        except Exception as table_error:
+            results["actions_taken"].append(f"❌ SQLAlchemy table creation failed: {str(table_error)}")
+            
+            # Fallback: Create tables with raw SQL using minimal schema
+            try:
+                # Use the existing database session
+                db = next(get_db())
+                
+                # Create watchlist_stocks with minimal schema (only existing columns)
+                create_watchlist_sql = text("""
+                CREATE TABLE IF NOT EXISTS watchlist_stocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol VARCHAR(255) NOT NULL,
+                    company_name VARCHAR(255),
+                    sector VARCHAR(255),
+                    industry VARCHAR(255),
+                    is_active BOOLEAN DEFAULT 1,
+                    added_by VARCHAR(255),
+                    added_reason TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                
+                db.execute(create_watchlist_sql)
+                db.commit()
+                results["actions_taken"].append("✅ Created watchlist_stocks table with raw SQL")
+                
+                # Add initial data
+                insert_sql = text("""
+                INSERT OR IGNORE INTO watchlist_stocks 
+                (symbol, company_name, sector, added_by, added_reason, is_active, created_at)
+                VALUES (:symbol, :company_name, :sector, :added_by, :added_reason, :is_active, :created_at)
+                """)
+                
+                stocks = [
+                    {"symbol": "PYPL", "company_name": "PayPal Holdings", "sector": "Financial Services", "added_by": "tuxninja@gmail.com", "added_reason": "Initialize fix", "is_active": 1, "created_at": datetime.now().isoformat()},
+                    {"symbol": "AAPL", "company_name": "Apple Inc", "sector": "Technology", "added_by": "tuxninja@gmail.com", "added_reason": "Initialize fix", "is_active": 1, "created_at": datetime.now().isoformat()},
+                    {"symbol": "GOOGL", "company_name": "Alphabet Inc", "sector": "Technology", "added_by": "tuxninja@gmail.com", "added_reason": "Initialize fix", "is_active": 1, "created_at": datetime.now().isoformat()}
+                ]
+                
+                for stock in stocks:
+                    db.execute(insert_sql, stock)
+                
+                db.commit()
+                results["actions_taken"].append(f"✅ Added {len(stocks)} stocks to watchlist")
+                
+                # Verify
+                verify_sql = text("SELECT COUNT(*) FROM watchlist_stocks")
+                result = db.execute(verify_sql)
+                count = result.scalar()
+                results["watchlist_count"] = count
+                results["actions_taken"].append(f"✅ Verified: {count} stocks in watchlist")
+                
+                db.close()
+                
+            except Exception as sql_error:
+                results["actions_taken"].append(f"❌ Raw SQL creation also failed: {str(sql_error)}")
+                results["success"] = False
+                return results
+        
+        results["success"] = True
+        results["message"] = "Database initialization completed"
+        results["test_url"] = "http://divestifi.com/api/watchlist"
+        
+        return results
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Database initialization failed"
+        }
+
 @app.get("/api/admin/production-environment-debug")
 async def production_environment_debug():
     """Debug production environment to find database location"""
