@@ -489,6 +489,29 @@ jobs:
           # Clean up files from home directory
           rm -f ~/docker-compose.prod.yml ~/nginx.conf ~/ecr_token.txt ~/update.sh
           
+          # Fix database permissions - CRITICAL FOR WRITE ACCESS
+          echo "🔧 Fixing database permissions..."
+          sudo mkdir -p /opt/trading/data
+          sudo mkdir -p /opt/trading/logs
+          
+          # Create database file if it doesn't exist and set proper permissions
+          if [ ! -f /opt/trading/data/trading.db ]; then
+            echo "📄 Creating new database file..."
+            sudo touch /opt/trading/data/trading.db
+          fi
+          
+          # Set ownership and permissions for database directory and file
+          sudo chown -R ec2-user:ec2-user /opt/trading/data
+          sudo chown -R ec2-user:ec2-user /opt/trading/logs
+          sudo chmod 755 /opt/trading/data
+          sudo chmod 664 /opt/trading/data/trading.db
+          
+          # Also fix permissions for any existing database backups
+          sudo find /opt/trading/data -name "*.db*" -exec chmod 664 {} \;
+          
+          echo "✅ Database permissions fixed:"
+          ls -la /opt/trading/data/
+          
           # Re-enable strict error handling for the rest of the script
           set -e
           
