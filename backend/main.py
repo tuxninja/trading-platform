@@ -1279,9 +1279,10 @@ async def emergency_watchlist_fix(db: Session = Depends(get_db)):
     """Emergency GET endpoint to fix watchlist using raw SQL - no auth required"""
     try:
         from datetime import datetime
+        from sqlalchemy import text
         
         # Use raw SQL to avoid ORM schema issues
-        result = db.execute("SELECT COUNT(*) FROM watchlist_stocks")
+        result = db.execute(text("SELECT COUNT(*) FROM watchlist_stocks"))
         current_count = result.scalar()
         
         if current_count == 0:
@@ -1299,12 +1300,12 @@ async def emergency_watchlist_fix(db: Session = Depends(get_db)):
             ]
             
             for stock_data in stocks:
-                db.execute(stocks_sql, stock_data)
+                db.execute(text(stocks_sql), stock_data)
             
             db.commit()
             
             # Verify with raw SQL
-            result = db.execute("SELECT COUNT(*) FROM watchlist_stocks")
+            result = db.execute(text("SELECT COUNT(*) FROM watchlist_stocks"))
             new_count = result.scalar()
             
             return {
