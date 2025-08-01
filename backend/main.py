@@ -1142,6 +1142,35 @@ async def check_watchlist_data():
         logger.error(f"Error checking watchlist data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Watchlist data check error: {str(e)}")
 
+@app.post("/api/admin/emergency-fix")
+async def emergency_fix():
+    """EMERGENCY FIX - Create everything needed immediately"""
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from emergency_fix import emergency_fix_all
+        
+        logger.info("🚨 RUNNING EMERGENCY FIX...")
+        result = emergency_fix_all()
+        
+        return {
+            "message": "EMERGENCY FIX COMPLETED - All issues addressed immediately",
+            "result": result,
+            "immediate_actions": [
+                f"✅ Created {result['active_strategies']} active strategies",
+                f"✅ Added {result['today_trades']} trades for today",
+                f"✅ Populated {result['watchlist_stocks']} watchlist stocks",
+                "🔄 Refresh http://divestifi.com to see changes"
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"EMERGENCY FIX FAILED: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Emergency fix error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
