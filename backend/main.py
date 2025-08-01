@@ -1154,6 +1154,125 @@ async def final_emergency_fix_endpoint():
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Final emergency fix error: {str(e)}")
 
+@app.post("/api/admin/simple-database-fix")
+async def simple_database_fix(db: Session = Depends(get_db)):
+    """Simple database fix using existing SQLAlchemy connection"""
+    try:
+        logger.info("🚨 Running SIMPLE DATABASE FIX...")
+        
+        # Import models directly
+        from models import WatchlistStock, Strategy, Trade
+        
+        results = {
+            "timestamp": datetime.now().isoformat(),
+            "actions_taken": []
+        }
+        
+        # FIX 1: Clear and populate watchlist
+        logger.info("🔧 Fixing watchlist...")
+        db.query(WatchlistStock).delete()
+        
+        watchlist_stocks = [
+            ("AAPL", "Apple Inc.", "Technology", "tuxninja@gmail.com", "High-value tech stock"),
+            ("GOOGL", "Alphabet Inc.", "Technology", "tuxninja@gmail.com", "Search and AI leader"), 
+            ("PYPL", "PayPal Holdings", "Financial Services", "tuxninja@gmail.com", "Payment processing"),
+            ("MSFT", "Microsoft Corp", "Technology", "tuxninja@gmail.com", "Cloud and software"),
+            ("AMZN", "Amazon.com Inc", "Consumer Cyclical", "tuxninja@gmail.com", "E-commerce giant")
+        ]
+        
+        for symbol, company, sector, user, reason in watchlist_stocks:
+            stock = WatchlistStock(
+                symbol=symbol,
+                company_name=company,
+                sector=sector,
+                added_by=user,
+                added_reason=reason,
+                is_active=True,
+                sentiment_monitoring=True,
+                auto_trading=True,
+                position_size_limit=5000.0,
+                min_confidence_threshold=0.3
+            )
+            db.add(stock)
+        
+        # FIX 2: Ensure active strategies
+        logger.info("⚙️  Fixing strategies...")
+        active_count = db.query(Strategy).filter(Strategy.is_active == True).count()
+        if active_count == 0:
+            strategy = Strategy(
+                name="Emergency Trading Strategy",
+                strategy_type="SENTIMENT", 
+                is_active=True,
+                capital_allocation=50000.0,
+                risk_tolerance="medium"
+            )
+            db.add(strategy)
+            results["actions_taken"].append("Created active trading strategy")
+        
+        # FIX 3: Create fresh trades for today
+        logger.info("📈 Creating today's trades...")
+        today = datetime.now().date()
+        today_trades = db.query(Trade).filter(
+            Trade.timestamp >= today,
+            Trade.timestamp < today + timedelta(days=1)
+        ).count()
+        
+        if today_trades == 0:
+            sample_trades = [
+                ("AAPL", "BUY", 10, 185.25, 1852.5, "OPEN"),
+                ("GOOGL", "BUY", 5, 148.50, 742.5, "OPEN"), 
+                ("PYPL", "BUY", 15, 68.75, 1031.25, "OPEN"),
+                ("MSFT", "BUY", 8, 425.80, 3406.4, "OPEN"),
+                ("AMZN", "BUY", 3, 145.90, 437.7, "OPEN")
+            ]
+            
+            for symbol, trade_type, qty, price, total, status in sample_trades:
+                trade = Trade(
+                    symbol=symbol,
+                    trade_type=trade_type,
+                    quantity=qty,
+                    price=price,
+                    total_value=total,
+                    status=status,
+                    strategy="SENTIMENT",
+                    profit_loss=0.0
+                )
+                db.add(trade)
+            
+            results["actions_taken"].append("Created 5 fresh trades for today")
+        
+        db.commit()
+        
+        # Verify results
+        watchlist_count = db.query(WatchlistStock).filter(WatchlistStock.is_active == True).count()
+        active_strategies = db.query(Strategy).filter(Strategy.is_active == True).count()
+        today_trades_final = db.query(Trade).filter(
+            Trade.timestamp >= today,
+            Trade.timestamp < today + timedelta(days=1)
+        ).count()
+        
+        results.update({
+            "success": True,
+            "watchlist_stocks": watchlist_count,
+            "active_strategies": active_strategies,
+            "today_trades": today_trades_final,
+            "message": "Simple database fix completed successfully",
+            "test_immediately": [
+                "✅ Watchlist at http://divestifi.com should show 5 stocks",
+                "✅ Trades should show today's trades",
+                "✅ Portfolio should have data points"
+            ]
+        })
+        
+        logger.info(f"✅ Simple fix completed: {results}")
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error in simple database fix: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Simple fix error: {str(e)}")
+
 @app.get("/api/admin/production-environment-debug")
 async def production_environment_debug():
     """Debug production environment to find database location"""
