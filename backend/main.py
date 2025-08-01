@@ -1276,32 +1276,43 @@ async def simple_database_fix(db: Session = Depends(get_db)):
 
 @app.get("/api/emergency-watchlist-fix")
 async def emergency_watchlist_fix(db: Session = Depends(get_db)):
-    """Emergency GET endpoint to fix watchlist - no auth required"""
+    """Emergency GET endpoint to fix watchlist using raw SQL - no auth required"""
     try:
         from datetime import datetime
-        from models import WatchlistStock
         
-        # Check current count
-        current_count = db.query(WatchlistStock).count()
+        # Use raw SQL to avoid ORM schema issues
+        result = db.execute("SELECT COUNT(*) FROM watchlist_stocks")
+        current_count = result.scalar()
         
         if current_count == 0:
-            # Add just one stock first to test - only include columns that exist in DB
-            stock = WatchlistStock(
-                symbol="PYPL",
-                company_name="PayPal Holdings Inc",
-                sector="Financial Services",
-                added_by="tuxninja@gmail.com",
-                added_reason="Emergency fix test",
-                is_active=True
-            )
-            db.add(stock)
+            # Add stocks using raw SQL - only use columns that exist
+            stocks_sql = """
+            INSERT INTO watchlist_stocks 
+            (symbol, company_name, sector, added_by, added_reason, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """
+            
+            stocks = [
+                ("PYPL", "PayPal Holdings", "Financial Services", "tuxninja@gmail.com", "Emergency fix", 1, datetime.now().isoformat()),
+                ("AAPL", "Apple Inc", "Technology", "tuxninja@gmail.com", "Emergency fix", 1, datetime.now().isoformat()),
+                ("GOOGL", "Alphabet Inc", "Technology", "tuxninja@gmail.com", "Emergency fix", 1, datetime.now().isoformat())
+            ]
+            
+            for stock_data in stocks:
+                db.execute(stocks_sql, stock_data)
+            
             db.commit()
+            
+            # Verify with raw SQL
+            result = db.execute("SELECT COUNT(*) FROM watchlist_stocks")
+            new_count = result.scalar()
             
             return {
                 "success": True,
-                "message": "Added PYPL to watchlist",
+                "message": f"Added {len(stocks)} stocks to watchlist using raw SQL",
                 "previous_count": current_count,
-                "new_count": 1,
+                "new_count": new_count,
+                "stocks_added": [s[0] for s in stocks],
                 "test_url": "http://divestifi.com/api/watchlist"
             }
         else:
