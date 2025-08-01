@@ -1274,6 +1274,55 @@ async def simple_database_fix(db: Session = Depends(get_db)):
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Simple fix error: {str(e)}")
 
+@app.get("/api/emergency-watchlist-fix")
+async def emergency_watchlist_fix(db: Session = Depends(get_db)):
+    """Emergency GET endpoint to fix watchlist - no auth required"""
+    try:
+        from datetime import datetime
+        from models import WatchlistStock
+        
+        # Check current count
+        current_count = db.query(WatchlistStock).count()
+        
+        if current_count == 0:
+            # Add just one stock first to test
+            stock = WatchlistStock(
+                symbol="PYPL",
+                company_name="PayPal Holdings Inc",
+                sector="Financial Services",
+                added_by="tuxninja@gmail.com",
+                added_reason="Emergency fix test",
+                is_active=True,
+                sentiment_monitoring=True,
+                auto_trading=True,
+                position_size_limit=5000.0,
+                min_confidence_threshold=0.3
+            )
+            db.add(stock)
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": "Added PYPL to watchlist",
+                "previous_count": current_count,
+                "new_count": 1,
+                "test_url": "http://divestifi.com/api/watchlist"
+            }
+        else:
+            return {
+                "success": True,
+                "message": "Watchlist already has stocks",
+                "count": current_count,
+                "test_url": "http://divestifi.com/api/watchlist"
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Emergency fix failed"
+        }
+
 @app.get("/api/admin/production-environment-debug")
 async def production_environment_debug():
     """Debug production environment to find database location"""
