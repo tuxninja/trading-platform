@@ -1071,6 +1071,46 @@ async def create_watchlist_tables_sql():
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Watchlist table creation error: {str(e)}")
 
+@app.post("/api/admin/fix-all-issues")
+async def fix_all_issues():
+    """Comprehensive fix for all 3 major issues: watchlist, trading, performance graph"""
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from fix_all_issues import run_comprehensive_fix
+        
+        logger.info("🚀 Running comprehensive fix for all issues...")
+        
+        results = run_comprehensive_fix()
+        
+        if results:
+            logger.info("✅ Comprehensive fix completed successfully")
+            return {
+                "message": "Comprehensive fix completed - all 3 issues addressed",
+                "timestamp": results["timestamp"],
+                "fixes_applied": results["fixes_applied"],
+                "detailed_results": {
+                    "watchlist_fix": results.get("watchlist_fix", {}),
+                    "strategy_fix": results.get("strategy_fix", {}),
+                    "portfolio_check": results.get("portfolio_check", {})
+                },
+                "success": True,
+                "next_steps": [
+                    "1. Watchlist should now work - try adding PYPL",
+                    "2. Trading will resume at 2 PM UTC (10 AM EST) today",
+                    "3. Portfolio graph frontend may need browser refresh/cache clear"
+                ]
+            }
+        else:
+            raise Exception("Fix script returned no results")
+        
+    except Exception as e:
+        logger.error(f"Error in comprehensive fix: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Comprehensive fix error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
