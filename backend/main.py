@@ -978,6 +978,99 @@ async def create_database_tables():
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Database creation error: {str(e)}")
 
+@app.post("/api/admin/create-watchlist-tables-sql")
+async def create_watchlist_tables_sql():
+    """Create watchlist tables using direct SQL"""
+    try:
+        import sqlite3
+        
+        db_path = "trading_app.db"
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        logger.info("Creating watchlist tables with direct SQL...")
+        
+        # Create watchlist_stocks table
+        watchlist_stocks_sql = """
+        CREATE TABLE IF NOT EXISTS watchlist_stocks (
+            id INTEGER PRIMARY KEY,
+            symbol VARCHAR(255),
+            company_name VARCHAR(255),
+            sector VARCHAR(255),
+            industry VARCHAR(255),
+            is_active BOOLEAN DEFAULT 1,
+            sentiment_monitoring BOOLEAN DEFAULT 1,
+            auto_trading BOOLEAN DEFAULT 1,
+            position_size_limit FLOAT DEFAULT 5000.0,
+            min_confidence_threshold FLOAT DEFAULT 0.3,
+            custom_buy_threshold FLOAT,
+            custom_sell_threshold FLOAT,
+            risk_tolerance VARCHAR(255) DEFAULT 'medium',
+            priority_level VARCHAR(255) DEFAULT 'NORMAL',
+            news_alerts BOOLEAN DEFAULT 1,
+            price_alerts BOOLEAN DEFAULT 0,
+            added_by VARCHAR(255),
+            added_reason TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_sentiment_check DATETIME,
+            last_trade_signal DATETIME,
+            last_monitored DATETIME,
+            reference_price FLOAT,
+            reference_price_updated DATETIME,
+            total_trades INTEGER DEFAULT 0,
+            successful_trades INTEGER DEFAULT 0,
+            total_pnl FLOAT DEFAULT 0.0
+        )
+        """
+        
+        # Create watchlist_alerts table
+        watchlist_alerts_sql = """
+        CREATE TABLE IF NOT EXISTS watchlist_alerts (
+            id INTEGER PRIMARY KEY,
+            watchlist_stock_id INTEGER,
+            alert_type VARCHAR(255),
+            title VARCHAR(255),
+            message TEXT,
+            severity VARCHAR(255) DEFAULT 'INFO',
+            is_read BOOLEAN DEFAULT 0,
+            is_dismissed BOOLEAN DEFAULT 0,
+            requires_action BOOLEAN DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            trigger_value FLOAT,
+            threshold_value FLOAT,
+            is_active BOOLEAN DEFAULT 1,
+            last_triggered DATETIME,
+            trigger_count INTEGER DEFAULT 0,
+            FOREIGN KEY (watchlist_stock_id) REFERENCES watchlist_stocks(id)
+        )
+        """
+        
+        cursor.execute(watchlist_stocks_sql)
+        cursor.execute(watchlist_alerts_sql)
+        
+        conn.commit()
+        
+        # Verify tables were created
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%watchlist%'")
+        watchlist_tables = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        logger.info(f"Watchlist tables created: {watchlist_tables}")
+        
+        return {
+            "message": "Watchlist tables created successfully with direct SQL",
+            "tables_created": watchlist_tables,
+            "success": len(watchlist_tables) == 2
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating watchlist tables with SQL: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Watchlist table creation error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
