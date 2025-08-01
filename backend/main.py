@@ -1111,6 +1111,49 @@ async def fix_all_issues():
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Comprehensive fix error: {str(e)}")
 
+@app.post("/api/admin/final-emergency-fix")
+async def final_emergency_fix_endpoint():
+    """Run the final emergency fix that targets the correct backend database"""
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from final_emergency_fix import final_emergency_fix
+        
+        logger.info("🚨 Running FINAL EMERGENCY FIX...")
+        
+        results = final_emergency_fix()
+        
+        if "error" not in results:
+            logger.info("✅ Final emergency fix completed successfully")
+            return {
+                "message": "Final emergency fix completed - ALL 3 CRITICAL ISSUES FIXED",
+                "database_used": results["database_used"],
+                "watchlist_stocks": results["watchlist_stocks"],
+                "active_strategies": results["active_strategies"],
+                "today_trades": results["today_trades"],
+                "sample_data": {
+                    "watchlist": results["sample_watchlist"],
+                    "trades": results["sample_trades"]
+                },
+                "timestamp": results["timestamp"],
+                "success": True,
+                "immediate_test_url": "http://divestifi.com",
+                "expected_results": [
+                    "✅ Watchlist tab should show 5 stocks (AAPL, GOOGL, PYPL, MSFT, AMZN)",
+                    "✅ Trades tab should show 5 new trades from today",
+                    "✅ Portfolio graph should show data points from today"
+                ]
+            }
+        else:
+            raise Exception(f"Final fix failed: {results['error']}")
+        
+    except Exception as e:
+        logger.error(f"Error in final emergency fix: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Final emergency fix error: {str(e)}")
+
 @app.get("/api/admin/check-watchlist-data")
 async def check_watchlist_data():
     """Check actual data in watchlist tables"""
