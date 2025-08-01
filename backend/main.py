@@ -1287,20 +1287,20 @@ async def emergency_watchlist_fix(db: Session = Depends(get_db)):
         
         if current_count == 0:
             # Add stocks using raw SQL - only use columns that exist
-            stocks_sql = """
+            stocks_sql = text("""
             INSERT INTO watchlist_stocks 
             (symbol, company_name, sector, added_by, added_reason, is_active, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """
+            VALUES (:symbol, :company_name, :sector, :added_by, :added_reason, :is_active, :created_at)
+            """)
             
             stocks = [
-                ("PYPL", "PayPal Holdings", "Financial Services", "tuxninja@gmail.com", "Emergency fix", 1, datetime.now().isoformat()),
-                ("AAPL", "Apple Inc", "Technology", "tuxninja@gmail.com", "Emergency fix", 1, datetime.now().isoformat()),
-                ("GOOGL", "Alphabet Inc", "Technology", "tuxninja@gmail.com", "Emergency fix", 1, datetime.now().isoformat())
+                {"symbol": "PYPL", "company_name": "PayPal Holdings", "sector": "Financial Services", "added_by": "tuxninja@gmail.com", "added_reason": "Emergency fix", "is_active": 1, "created_at": datetime.now().isoformat()},
+                {"symbol": "AAPL", "company_name": "Apple Inc", "sector": "Technology", "added_by": "tuxninja@gmail.com", "added_reason": "Emergency fix", "is_active": 1, "created_at": datetime.now().isoformat()},
+                {"symbol": "GOOGL", "company_name": "Alphabet Inc", "sector": "Technology", "added_by": "tuxninja@gmail.com", "added_reason": "Emergency fix", "is_active": 1, "created_at": datetime.now().isoformat()}
             ]
             
             for stock_data in stocks:
-                db.execute(text(stocks_sql), stock_data)
+                db.execute(stocks_sql, stock_data)
             
             db.commit()
             
@@ -1313,7 +1313,7 @@ async def emergency_watchlist_fix(db: Session = Depends(get_db)):
                 "message": f"Added {len(stocks)} stocks to watchlist using raw SQL",
                 "previous_count": current_count,
                 "new_count": new_count,
-                "stocks_added": [s[0] for s in stocks],
+                "stocks_added": [s["symbol"] for s in stocks],
                 "test_url": "http://divestifi.com/api/watchlist"
             }
         else:
