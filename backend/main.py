@@ -1158,6 +1158,7 @@ async def final_emergency_fix_endpoint():
 async def simple_database_fix(db: Session = Depends(get_db)):
     """Simple database fix using existing SQLAlchemy connection"""
     try:
+        from datetime import datetime, timedelta
         logger.info("🚨 Running SIMPLE DATABASE FIX...")
         
         # Import models directly
