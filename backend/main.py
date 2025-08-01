@@ -1111,6 +1111,37 @@ async def fix_all_issues():
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Comprehensive fix error: {str(e)}")
 
+@app.get("/api/admin/check-watchlist-data")
+async def check_watchlist_data():
+    """Check actual data in watchlist tables"""
+    try:
+        import sqlite3
+        
+        db_path = "trading_app.db"
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get all data from watchlist_stocks
+        cursor.execute("SELECT id, symbol, company_name, added_by, created_at FROM watchlist_stocks")
+        stocks = [{"id": row[0], "symbol": row[1], "company_name": row[2], "added_by": row[3], "created_at": row[4]} 
+                 for row in cursor.fetchall()]
+        
+        # Get count
+        cursor.execute("SELECT COUNT(*) FROM watchlist_stocks")
+        count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "total_stocks": count,
+            "stocks": stocks,
+            "database_path": db_path
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking watchlist data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Watchlist data check error: {str(e)}")
+
 @app.post("/api/admin/optimize-database")
 async def optimize_database():
     """Admin endpoint to optimize database with indexes"""
