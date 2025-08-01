@@ -1331,6 +1331,62 @@ async def emergency_watchlist_fix(db: Session = Depends(get_db)):
             "message": "Emergency fix failed"
         }
 
+@app.get("/api/fix-database-permissions")
+async def fix_database_permissions():
+    """Try to fix database permissions issue"""
+    import os
+    import stat
+    try:
+        from config import config
+        
+        # Get database path from config
+        db_url = config.DATABASE_URL
+        if db_url.startswith("sqlite:///"):
+            db_path = db_url.replace("sqlite:///", "")
+            if db_path.startswith("./"):
+                db_path = db_path[2:]  # Remove ./
+            
+            results = {
+                "database_url": db_url,
+                "database_path": db_path,
+                "actions_taken": []
+            }
+            
+            if os.path.exists(db_path):
+                # Check current permissions
+                current_stat = os.stat(db_path)
+                current_perms = oct(current_stat.st_mode)[-3:]
+                results["current_permissions"] = current_perms
+                
+                # Try to make it writable
+                try:
+                    os.chmod(db_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP)
+                    new_stat = os.stat(db_path)
+                    new_perms = oct(new_stat.st_mode)[-3:]
+                    results["new_permissions"] = new_perms
+                    results["actions_taken"].append(f"Changed permissions from {current_perms} to {new_perms}")
+                    results["success"] = True
+                except Exception as perm_error:
+                    results["permission_error"] = str(perm_error)
+                    results["success"] = False
+                    
+                # Also check directory permissions
+                db_dir = os.path.dirname(db_path) or "."
+                dir_stat = os.stat(db_dir)
+                dir_perms = oct(dir_stat.st_mode)[-3:]
+                results["directory_permissions"] = dir_perms
+                
+            else:
+                results["error"] = f"Database file not found at {db_path}"
+                results["success"] = False
+                
+            return results
+        else:
+            return {"error": "Not a SQLite database", "database_url": db_url}
+            
+    except Exception as e:
+        return {"error": str(e), "success": False}
+
 @app.get("/api/admin/production-environment-debug")
 async def production_environment_debug():
     """Debug production environment to find database location"""
