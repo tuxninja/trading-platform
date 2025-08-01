@@ -1412,6 +1412,34 @@ async def initialize_database():
             from database import engine, Base
             Base.metadata.create_all(bind=engine)
             results["actions_taken"].append("✅ Created all database tables using SQLAlchemy")
+            
+            # Now add initial data using the same engine/connection that worked for table creation
+            with engine.connect() as conn:
+                # Use raw SQL with the engine connection that we know works
+                insert_sql = text("""
+                INSERT OR IGNORE INTO watchlist_stocks 
+                (symbol, company_name, sector, added_by, added_reason, is_active, created_at)
+                VALUES (:symbol, :company_name, :sector, :added_by, :added_reason, :is_active, :created_at)
+                """)
+                
+                stocks = [
+                    {"symbol": "PYPL", "company_name": "PayPal Holdings", "sector": "Financial Services", "added_by": "tuxninja@gmail.com", "added_reason": "Initialize fix", "is_active": 1, "created_at": datetime.now().isoformat()},
+                    {"symbol": "AAPL", "company_name": "Apple Inc", "sector": "Technology", "added_by": "tuxninja@gmail.com", "added_reason": "Initialize fix", "is_active": 1, "created_at": datetime.now().isoformat()},
+                    {"symbol": "GOOGL", "company_name": "Alphabet Inc", "sector": "Technology", "added_by": "tuxninja@gmail.com", "added_reason": "Initialize fix", "is_active": 1, "created_at": datetime.now().isoformat()}
+                ]
+                
+                for stock in stocks:
+                    conn.execute(insert_sql, stock)
+                
+                conn.commit()
+                results["actions_taken"].append(f"✅ Added {len(stocks)} stocks to watchlist using engine connection")
+                
+                # Verify
+                verify_result = conn.execute(text("SELECT COUNT(*) FROM watchlist_stocks"))
+                count = verify_result.scalar()
+                results["watchlist_count"] = count
+                results["actions_taken"].append(f"✅ Verified: {count} stocks in watchlist")
+                
         except Exception as table_error:
             results["actions_taken"].append(f"❌ SQLAlchemy table creation failed: {str(table_error)}")
             
