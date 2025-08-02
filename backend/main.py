@@ -1843,6 +1843,45 @@ async def get_watchlist(include_inactive: bool = False, db: Session = Depends(ge
         # Temporarily show the actual error instead of empty array
         raise HTTPException(status_code=500, detail=f"Watchlist error: {str(e)}")
 
+@app.get("/api/watchlist-direct")
+async def get_watchlist_direct(db: Session = Depends(get_db)):
+    """Get watchlist directly from database bypassing service layer"""
+    try:
+        from sqlalchemy import text
+        
+        # Direct SQL query to get watchlist stocks
+        result = db.execute(text("""
+            SELECT symbol, company_name, sector, industry, is_active, added_by, created_at
+            FROM watchlist_stocks 
+            WHERE is_active = 1
+            ORDER BY created_at DESC
+        """))
+        
+        stocks = []
+        for row in result:
+            stocks.append({
+                "symbol": row[0],
+                "company_name": row[1],
+                "sector": row[2], 
+                "industry": row[3],
+                "is_active": row[4],
+                "added_by": row[5],
+                "created_at": row[6]
+            })
+        
+        return {
+            "success": True,
+            "count": len(stocks),
+            "stocks": stocks
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "stocks": []
+        }
+
 @app.post("/api/watchlist")
 async def add_stock_to_watchlist(
     stock_data: dict = Body(...), 
