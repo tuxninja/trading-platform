@@ -1420,7 +1420,6 @@ async def generate_portfolio_history(db: Session = Depends(get_db)):
                 
                 portfolio_values.append({
                     "date": date.date().isoformat(),
-                    "timestamp": date.isoformat(),
                     "portfolio_value": portfolio_value,
                     "daily_pnl": random_variation,
                     "total_trades": min(i * 2, 50),
@@ -1428,11 +1427,11 @@ async def generate_portfolio_history(db: Session = Depends(get_db)):
                     "losing_trades": max(0, min(i * 1 - 10, 20))
                 })
             
-            # Insert performance data
+            # Insert performance data (simplified to match existing table structure)
             insert_sql = text("""
             INSERT INTO performance_metrics 
-            (date, timestamp, portfolio_value, daily_pnl, total_trades, winning_trades, losing_trades)
-            VALUES (:date, :timestamp, :portfolio_value, :daily_pnl, :total_trades, :winning_trades, :losing_trades)
+            (date, portfolio_value, daily_pnl, total_trades, winning_trades, losing_trades)
+            VALUES (:date, :portfolio_value, :daily_pnl, :total_trades, :winning_trades, :losing_trades)
             """)
             
             for metrics in portfolio_values:
