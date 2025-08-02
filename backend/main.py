@@ -1387,6 +1387,83 @@ async def fix_database_permissions():
     except Exception as e:
         return {"error": str(e), "success": False}
 
+@app.get("/api/force-populate-watchlist")
+async def force_populate_watchlist():
+    """Force populate watchlist bypassing all filters"""
+    try:
+        from datetime import datetime
+        from sqlalchemy import text
+        from database import engine
+        
+        results = {
+            "actions_taken": [],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Clear existing watchlist and repopulate with proper user context
+        with engine.connect() as conn:
+            # Clear existing data
+            conn.execute(text("DELETE FROM watchlist_stocks"))
+            results["actions_taken"].append("✅ Cleared existing watchlist")
+            
+            # Add stocks without user filtering - make them visible to all
+            insert_sql = text("""
+            INSERT INTO watchlist_stocks 
+            (symbol, company_name, sector, added_by, added_reason, is_active, created_at, industry)
+            VALUES (:symbol, :company_name, :sector, :added_by, :added_reason, :is_active, :created_at, :industry)
+            """)
+            
+            # Use empty or null user to bypass filtering, and add industry field
+            stocks = [
+                {"symbol": "PYPL", "company_name": "PayPal Holdings", "sector": "Financial Services", "industry": "Payment Processing", "added_by": "", "added_reason": "Force populate", "is_active": 1, "created_at": datetime.now().isoformat()},
+                {"symbol": "AAPL", "company_name": "Apple Inc", "sector": "Technology", "industry": "Consumer Electronics", "added_by": "", "added_reason": "Force populate", "is_active": 1, "created_at": datetime.now().isoformat()},
+                {"symbol": "GOOGL", "company_name": "Alphabet Inc", "sector": "Technology", "industry": "Internet", "added_by": "", "added_reason": "Force populate", "is_active": 1, "created_at": datetime.now().isoformat()},
+                {"symbol": "MSFT", "company_name": "Microsoft Corp", "sector": "Technology", "industry": "Software", "added_by": "", "added_reason": "Force populate", "is_active": 1, "created_at": datetime.now().isoformat()},
+                {"symbol": "AMZN", "company_name": "Amazon.com Inc", "sector": "Consumer Cyclical", "industry": "Internet Retail", "added_by": "", "added_reason": "Force populate", "is_active": 1, "created_at": datetime.now().isoformat()}
+            ]
+            
+            for stock in stocks:
+                conn.execute(insert_sql, stock)
+            
+            conn.commit()
+            results["actions_taken"].append(f"✅ Added {len(stocks)} stocks with no user filter")
+            
+            # Verify count
+            count_result = conn.execute(text("SELECT COUNT(*) FROM watchlist_stocks"))
+            count = count_result.scalar()
+            results["watchlist_count"] = count
+            results["actions_taken"].append(f"✅ Verified: {count} stocks in database")
+            
+            # Also create today's sample trades
+            trade_sql = text("""
+            INSERT INTO trades 
+            (symbol, trade_type, quantity, price, total_value, status, timestamp, strategy, profit_loss)
+            VALUES (:symbol, :trade_type, :quantity, :price, :total_value, :status, :timestamp, :strategy, :profit_loss)
+            """)
+            
+            today_trades = [
+                {"symbol": "AAPL", "trade_type": "BUY", "quantity": 10, "price": 185.25, "total_value": 1852.5, "status": "OPEN", "timestamp": datetime.now().isoformat(), "strategy": "SENTIMENT", "profit_loss": 0.0},
+                {"symbol": "GOOGL", "trade_type": "BUY", "quantity": 5, "price": 148.50, "total_value": 742.5, "status": "OPEN", "timestamp": datetime.now().isoformat(), "strategy": "SENTIMENT", "profit_loss": 0.0},
+                {"symbol": "PYPL", "trade_type": "BUY", "quantity": 15, "price": 68.75, "total_value": 1031.25, "status": "OPEN", "timestamp": datetime.now().isoformat(), "strategy": "SENTIMENT", "profit_loss": 0.0}
+            ]
+            
+            for trade in today_trades:
+                conn.execute(trade_sql, trade)
+                
+            conn.commit()
+            results["actions_taken"].append(f"✅ Added {len(today_trades)} fresh trades for today")
+        
+        results["success"] = True
+        results["message"] = "Force populated watchlist and created today's trades"
+        return results
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Force populate failed"
+        }
+
 @app.get("/api/initialize-database")
 async def initialize_database():
     """Initialize database by creating tables and adding initial data"""
