@@ -1840,8 +1840,8 @@ async def get_watchlist(include_inactive: bool = False, db: Session = Depends(ge
             
     except Exception as e:
         logger.error(f"Watchlist error: {str(e)}")
-        # Return empty watchlist instead of 500 error
-        return []
+        # Temporarily show the actual error instead of empty array
+        raise HTTPException(status_code=500, detail=f"Watchlist error: {str(e)}")
 
 @app.post("/api/watchlist")
 async def add_stock_to_watchlist(
