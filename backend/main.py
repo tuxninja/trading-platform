@@ -1387,6 +1387,45 @@ async def fix_database_permissions():
     except Exception as e:
         return {"error": str(e), "success": False}
 
+@app.get("/api/inspect-tables")
+async def inspect_tables(db: Session = Depends(get_db)):
+    """Inspect database table schemas"""
+    try:
+        from sqlalchemy import text
+        
+        # Get all table names
+        tables_result = db.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        tables = [row[0] for row in tables_result]
+        
+        schemas = {}
+        for table in tables:
+            try:
+                # Get table schema
+                schema_result = db.execute(text(f"PRAGMA table_info({table})"))
+                columns = []
+                for row in schema_result:
+                    columns.append({
+                        "name": row[1],
+                        "type": row[2],
+                        "nullable": not bool(row[3]),
+                        "default": row[4]
+                    })
+                schemas[table] = columns
+            except:
+                schemas[table] = "Error getting schema"
+        
+        return {
+            "success": True,
+            "tables": tables,
+            "schemas": schemas
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 @app.get("/api/generate-portfolio-history")
 async def generate_portfolio_history(db: Session = Depends(get_db)):
     """Generate historical portfolio performance data for the graph"""
